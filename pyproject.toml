@@ -1,0 +1,19 @@
+[project]
+name = "typeshi"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["polars>=1.0", "numpy>=1.26", "scipy>=1.11"]
+
+[project.optional-dependencies]
+train = ["torch>=2.4", "transformers>=4.44", "peft>=0.12", "trl>=0.9", "datasets>=2.20", "accelerate>=0.33"]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/typeshi"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

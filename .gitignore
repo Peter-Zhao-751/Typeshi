@@ -1,0 +1,7 @@
+data/
+.superpowers/
+__pycache__/
+*.pyc
+.venv/
+checkpoints/
+*.jsonl
