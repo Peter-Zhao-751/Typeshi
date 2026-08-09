@@ -58,6 +58,58 @@ python -m mlx_lm lora \
   --adapter-path checkpoints/motor-mlx
 ```
 
+### Measured throughput
+
+4-bit 8B Llama 3.1, real transcription examples, `--max-seq-length 1024`:
+
+| batch | LoRA layers | tokens/sec | peak memory |
+|---|---|---|---|
+| **1** | **8** | **554** | **8.5 GB** |
+| 4 | 8 | ~370 | 19.1 GB |
+| 4 | 16 | 270 | 29.2 GB |
+
+**Batch 1 is the fastest configuration.** Training here is memory-bandwidth
+bound, so larger batches cost more than they buy — batch 4 with 16 layers is
+half the throughput of batch 1 with 8, for 3.4× the memory. Peak memory at the
+fast setting is 8.5 GB of 48 GB, so the headroom is real but not worth spending
+on batch size.
+
+Training does converge: val loss fell 1.346 → 0.563 over 20 iterations.
+
+### Caveat: the event tokens fragment, 4.13x
+
+This is the important one. `prepare_tokenizer()` registers the ~380 event
+tokens so each event is exactly one token. `mlx-lm` loads the stock tokenizer
+from the model repo and has no equivalent step, so the grammar shatters:
+
+```
+<DT:0><KEY:W><HOLD:52>
+  stock : ['<','DT',':','0','><','KEY',':','W','><','H','OLD',':','52','><']
+  ours  : ['<DT:0>', '<KEY:W>', '<HOLD:52>']
+```
+
+Measured over 50 real completions: **603 tokens/example stock vs 146 extended
+— 4.13x inflation.** Consequences:
+
+- Effective throughput drops ~4x, since most tokens are punctuation fragments.
+- At `--max-seq-length 1024` sequences get truncated (observed: 1161 → 1024),
+  so the model sees only part of each session.
+- The timing signal is spread across several tokens instead of one, which is
+  precisely the representation the plan chose bins to avoid.
+
+**The MLX numbers above were measured under this penalty.** They are honest
+throughput figures for the naive setup, not for the intended representation.
+
+Fixing it means building the extended model locally before MLX ever sees it:
+
+1. Load the full-precision 8B in transformers, run `prepare_tokenizer()`,
+   `resize_token_embeddings()`, and save the pair to a local directory.
+2. `python -m mlx_lm convert --hf-path <local-dir> -q` to quantize to 4-bit.
+3. Train against that converted local model.
+
+This is untested here. It needs the ~16 GB full-precision download plus disk
+for the conversion.
+
 ### Caveat: adapters are not interchangeable
 
 `mlx-lm` writes MLX-format adapters, which `scripts/run_eval.py` cannot load —
@@ -93,9 +145,19 @@ alternatives that need no approval:
 | Goal | Route |
 |---|---|
 | Verify the pipeline runs | PyTorch/MPS, tiny model, `--limit-*` data |
-| Iterate on an 8B locally | MLX + 4-bit, accepting the tokenizer caveat |
+| Iterate on an 8B locally | MLX + 4-bit, after fixing the tokenizer |
 | The real 2M-example run | Rented CUDA GPU — bf16, as the plan intends |
 
-The full export is 2,018,334 examples. At batch 4 × accum 8 that is ~63k
-optimizer steps for one epoch, which is a rented-GPU job regardless of how well
-the Mac path works.
+### Why the full run does not belong here
+
+The export is 2,018,334 examples. At ~200 tokens each with the extended
+tokenizer that is ~400M tokens per epoch; at the measured 554 tokens/sec:
+
+| Scope | Tokens | Wall clock at 554 tok/s |
+|---|---|---|
+| Full epoch, extended tokenizer | ~400M | **~8 days** |
+| Full epoch, fragmented (today) | ~1.4B | **~29 days** |
+| 50k-example subset, extended | ~10M | ~5 hours |
+
+So the Mac is genuinely useful for a subset run overnight, and genuinely
+unsuitable for the full corpus. Rent the GPU for the real thing.
