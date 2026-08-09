@@ -100,15 +100,50 @@ Measured over 50 real completions: **603 tokens/example stock vs 146 extended
 **The MLX numbers above were measured under this penalty.** They are honest
 throughput figures for the naive setup, not for the intended representation.
 
-Fixing it means building the extended model locally before MLX ever sees it:
+### Fixed: build the model with the grammar baked in
 
-1. Load the full-precision 8B in transformers, run `prepare_tokenizer()`,
-   `resize_token_embeddings()`, and save the pair to a local directory.
-2. `python -m mlx_lm convert --hf-path <local-dir> -q` to quantize to 4-bit.
-3. Train against that converted local model.
+`scripts/prepare_mlx_model.py` does the surgery before MLX sees the model —
+extend the tokenizer, seed the new embeddings, resize, convert to 4-bit, and
+verify each event survives as one token:
 
-This is untested here. It needs the ~16 GB full-precision download plus disk
-for the conversion.
+```bash
+uv run python scripts/prepare_mlx_model.py \
+  --base Qwen/Qwen2.5-7B-Instruct \
+  --out models/qwen25-7b-typeshi-mlx
+```
+
+Roughly 15 GB of download and a few minutes of conversion; the output is 4.0 GB
+and the intermediate is deleted unless you pass `--keep-staging`.
+
+Measured before and after, both at batch 1 / 8 layers / seq 1024:
+
+| Configuration | tokens/example | examples/sec | peak memory |
+|---|---|---|---|
+| Llama-3.1-8B, stock tokenizer | 702 | 0.79 | 8.5 GB |
+| **Qwen2.5-7B, extended tokenizer** | **239** | **1.88** | **6.1 GB** |
+
+**2.4x more examples per second and less memory.** Truncation also stops:
+sequences no longer exceed the 1024 limit, so the model sees whole sessions
+instead of the first quarter. (The two rows are different base models — Llama
+is gated — so treat the ratio as indicative, not a controlled A/B.)
+
+### Caveat: MLX cannot train the embeddings
+
+`mlx_lm lora` offers `lora`, `dora`, and `full`, with no way to train the
+embedding table alongside adapters. The event tokens are new, so whatever
+`prepare_mlx_model.py` seeds at conversion time is **permanent** for the whole
+MLX run.
+
+That is why the seeding step exists rather than relying on
+`resize_token_embeddings`. Resizing draws every new row from one fitted
+distribution, which leaves all 356 tokens nearly identical — measured
+`cos(<DT:50>, <DT:120>) = 1.0000`. Seeding from sub-word pieces restores the
+ordinal structure the time bins depend on: after it, adjacent bins score 0.9722
+against 0.9535 for distant ones.
+
+Good seeds are still weaker than trained embeddings. The CUDA path trains them
+(`modules_to_save`, on by default in `build_peft_config`), so a GPU run should
+learn better event representations than any MLX run can.
 
 ### Caveat: adapters are not interchangeable
 
@@ -153,11 +188,28 @@ alternatives that need no approval:
 The export is 2,018,334 examples. At ~200 tokens each with the extended
 tokenizer that is ~400M tokens per epoch; at the measured 554 tokens/sec:
 
-| Scope | Tokens | Wall clock at 554 tok/s |
+Measured at 1.88 examples/sec with the extended tokenizer:
+
+| Scope | Extended tokenizer | Stock tokenizer |
 |---|---|---|
-| Full epoch, extended tokenizer | ~400M | **~8 days** |
-| Full epoch, fragmented (today) | ~1.4B | **~29 days** |
-| 50k-example subset, extended | ~10M | ~5 hours |
+| Full epoch (2,018,334 examples) | **12.4 days** | 29.6 days |
+| 50k-example subset | **7.4 hours** | 17.6 hours |
+| 20k-example subset | **3 hours** | 7 hours |
 
 So the Mac is genuinely useful for a subset run overnight, and genuinely
 unsuitable for the full corpus. Rent the GPU for the real thing.
+
+### Running it
+
+```bash
+# one-off: build the base model with the grammar baked in
+uv run python scripts/prepare_mlx_model.py --out models/qwen25-7b-typeshi-mlx
+
+# mlx-lm wants a directory holding train.jsonl and valid.jsonl
+uv run python -m mlx_lm lora \
+  --model models/qwen25-7b-typeshi-mlx --train --data <data-dir> \
+  --batch-size 1 --num-layers 8 --iters 5000 --max-seq-length 1024 \
+  --adapter-path checkpoints/motor-mlx
+```
+
+Keep batch size at 1 — see the throughput table above.
