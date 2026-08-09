@@ -2,7 +2,7 @@
 name = "typeshi"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["polars>=1.0", "numpy>=1.26", "scipy>=1.11"]
+dependencies = ["polars>=1.0", "numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"]
 
 [project.optional-dependencies]
 train = ["torch>=2.4", "transformers>=4.44", "peft>=0.12", "trl>=0.9", "datasets>=2.20", "accelerate>=0.33"]
@@ -17,3 +17,6 @@ packages = ["src/typeshi"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+    "network: needs to download a model; set TYPESHI_NETWORK_TESTS=1 to run",
+]
