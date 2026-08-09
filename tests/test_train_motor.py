@@ -6,6 +6,7 @@ from typeshi.serialize import special_tokens
 from typeshi.train_motor import build_peft_config, prepare_tokenizer
 
 TINY = "hf-internal-testing/tiny-random-gpt2"
+TINY_LLAMA = "hf-internal-testing/tiny-random-LlamaForCausalLM"
 
 # Only the tokenizer tests need to download a model; the rest are pure logic.
 needs_network = pytest.mark.network
@@ -67,3 +68,50 @@ def test_bfloat16_is_never_paired_with_device_map_off_cuda():
     for cuda, bf16, mps in [(False, False, True), (False, True, True), (False, False, False)]:
         got = select_backend(has_cuda=cuda, has_bf16=bf16, has_mps=mps)
         assert not (got["dtype"] == "bfloat16" and got["device_map"] == "auto")
+
+
+def test_embedding_modules_avoid_naming_a_tied_tensor_twice():
+    """Tied models share one tensor between input and output embeddings, so
+    naming both makes peft warn and complicates merging."""
+    from typeshi.train_motor import embedding_modules_to_save
+
+    assert embedding_modules_to_save(tied=True) == ["embed_tokens"]
+    assert embedding_modules_to_save(tied=False) == ["embed_tokens", "lm_head"]
+
+
+def test_new_event_tokens_are_trained_by_default():
+    """The event tokens do not exist in any base vocabulary. If the embedding
+    table stays frozen they keep whatever resizing gave them for the whole
+    run, and the output head can never learn to emit them."""
+    cfg = build_peft_config()
+    assert cfg.modules_to_save and "embed_tokens" in cfg.modules_to_save
+
+
+def test_embedding_training_can_be_disabled_for_tight_gpus():
+    assert build_peft_config(train_embeddings=False).modules_to_save is None
+
+
+@needs_network
+def test_seeding_gives_adjacent_time_bins_similar_embeddings():
+    """<DT:50> and <DT:51> are neighbouring time bins and should start close.
+
+    resize_token_embeddings draws every new row from one fitted distribution,
+    which leaves them nearly identical to each other and carrying no ordinal
+    structure at all. Seeding from sub-word pieces restores it.
+    """
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    from typeshi.train_motor import initialize_new_token_embeddings
+
+    tok = prepare_tokenizer(TINY_LLAMA)
+    model = AutoModelForCausalLM.from_pretrained(TINY_LLAMA, dtype=torch.float32)
+    model.resize_token_embeddings(len(tok))
+    assert initialize_new_token_embeddings(model, TINY_LLAMA) > 300
+
+    emb = model.get_input_embeddings().weight
+    ids = {t: tok.convert_tokens_to_ids(t) for t in ("<DT:50>", "<DT:51>", "<DT:120>")}
+    sim = lambda a, b: torch.nn.functional.cosine_similarity(  # noqa: E731
+        emb[ids[a]][None], emb[ids[b]][None]
+    ).item()
+    assert sim("<DT:50>", "<DT:51>") > sim("<DT:50>", "<DT:120>")
