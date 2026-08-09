@@ -35,6 +35,11 @@ def select_backend(has_cuda: bool, has_bf16: bool, has_mps: bool) -> dict:
     if has_cuda:
         return {"dtype": "float16", "device_map": "auto", "bf16": False}
     if has_mps:
+        # fp32 is the only precision that works reliably here. Measured on an
+        # M5 Pro with torch 2.13: bfloat16 + device_map="auto" segfaults while
+        # loading (exit 139), and float16 hangs indefinitely. fp32 doubles the
+        # memory an 8B needs to ~32 GB, so MPS is for smoke tests on small
+        # models -- see docs/training-on-apple-silicon.md for the MLX route.
         return {"dtype": "float32", "device_map": "auto", "bf16": False}
     return {"dtype": "float32", "device_map": None, "bf16": False}
 
