@@ -90,16 +90,20 @@ Counts from a 200-file sample of WritingTask.
    `encoding="utf8-lossy"`; strict UTF-8 raises `ComputeError` and kills the scan.
 2. **Backslash escapes in `TextChange`.** Newline is the two characters `\` `n`,
    not `0x0A`. Also `\"` and `\\`. Must be unescaped before use.
-3. **Trailing newline in the gold text.** `texts/<writer>.txt` ends with one more
-   `\n` than the keystroke log produces. Compare against `gold.rstrip("\n")`.
+3. **Trailing newlines disagree.** Writers really do end essays with blank
+   lines, and `texts/<writer>.txt` then adds one more `\n` on top. So neither
+   side is authoritative about the tail: normalise with `rstrip("\n")` on
+   *both* the replayed text and the gold text. Stripping only the gold side
+   drops the exact-replay yield from 95.8% to 70.5%.
 4. **Non-monotonic `DownTime`.** Key rollover means row *n+1* can have a smaller
    `DownTime` than row *n* (e.g. `l` at 48797 followed by `i` at 48959 while `l`
    is still held). Sort by `DownTime` before parsing, and expect overlaps.
-5. **~4.5% of sessions do not replay exactly.** Measured 286/300 exact on a
-   sample. The failures are transposition-shaped (`"cryptographcry"` for
-   `"cryptography,"`), caused by the logger recording a stale `CursorPosition`
-   during fast rollover. This is a corpus artifact, not a rule error — these
-   sessions are **dropped**, not patched, so exact replay stays the gate.
+5. **~4% of sessions do not replay exactly.** The adapter reproduces 575/600
+   (95.8%) of WritingTask sessions byte for byte. The failures are
+   transposition-shaped (`"cryptographcry"` for `"cryptography,"`), caused by
+   the logger recording a stale `CursorPosition` during fast rollover. This is
+   a corpus artifact, not a rule error — those sessions are **dropped**, not
+   patched, so exact replay stays the gate.
 
 ---
 
