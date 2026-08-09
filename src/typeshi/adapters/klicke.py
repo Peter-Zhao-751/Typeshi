@@ -13,7 +13,6 @@ Schema notes that drive this file (see docs/data-schemas.md):
 
 from __future__ import annotations
 
-import dataclasses
 import re
 from pathlib import Path
 from typing import Iterator
@@ -21,7 +20,7 @@ from typing import Iterator
 import polars as pl
 
 from typeshi.buffer import ReplayError, TextBuffer
-from typeshi.events import Event
+from typeshi.events import Event, rebase
 
 # Canonical name -> real CSV column. Verified against docs/data-schemas.md.
 KLICKE_COLUMNS = {
@@ -67,26 +66,6 @@ def _seek(events: list[Event], buf: TextBuffer, pos: int, press: int) -> None:
     if not 0 <= pos <= len(buf.text):
         raise UnreplayableSession(f"cursor {pos} outside buffer of {len(buf.text)}")
     _emit(events, buf, Event.cursor(pos, press))
-
-
-def _rebase(events: list[Event]) -> list[Event]:
-    """Shifts times so the first *emitted* event sits at 0.
-
-    Logs open with non-production rows (a click, a stray Shift) that can precede
-    the first keystroke by many seconds. Anchoring on the first row would leave
-    that dead time in front of the session.
-    """
-    if not events:
-        return events
-    t0 = events[0].press_time
-    return [
-        dataclasses.replace(
-            e,
-            press_time=e.press_time - t0,
-            release_time=None if e.release_time is None else e.release_time - t0,
-        )
-        for e in events
-    ]
 
 
 def _read(path: Path) -> pl.DataFrame:
@@ -178,7 +157,7 @@ def parse_session(rows: pl.DataFrame) -> tuple[str, list[Event]]:
         # Nonproduction rows (modifiers, arrows, clicks) carry no text effect.
         # Their caret position is folded into the next edit's _seek.
 
-    return buf.text, _rebase(events)
+    return buf.text, rebase(events)
 
 
 def gold_text_path(csv_path: Path) -> Path | None:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from enum import Enum
+from typing import Sequence
 
 
 class EventType(Enum):
@@ -44,3 +46,23 @@ class Event:
         if start >= end:
             raise ValueError(f"seldel needs start < end, got {start} >= {end}")
         return Event(EventType.SELDEL, press_time, start=start, end=end)
+
+
+def rebase(events: Sequence[Event]) -> list[Event]:
+    """Shifts times so the first event sits at 0.
+
+    Every adapter needs this and none can do it while parsing: logs open with
+    rows that produce no event (a stray SHIFT, a click), and anchoring on the
+    first *row* would leave that dead time in front of the session.
+    """
+    if not events:
+        return list(events)
+    t0 = events[0].press_time
+    return [
+        dataclasses.replace(
+            e,
+            press_time=e.press_time - t0,
+            release_time=None if e.release_time is None else e.release_time - t0,
+        )
+        for e in events
+    ]

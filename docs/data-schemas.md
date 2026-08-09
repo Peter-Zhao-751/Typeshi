@@ -13,12 +13,17 @@ permissions below could not be verified from the bytes themselves.
 
 | Corpus | Distribution | Status |
 |---|---|---|
-| Aalto 136M Keystrokes | `userinterfaces.aalto.fi/136Mkeystrokes/` — download gated behind an on-page research-use agreement | Terms accepted at download time on the site; no copy retained in the archive |
+| Aalto 136M Keystrokes | `userinterfaces.aalto.fi/136Mkeystrokes/` | **Verified** — `Keystrokes/files/readme.txt` grants use "for non-commercial use in your own research or projects with attribution to the authors" |
 | KLiCKe | Google Drive link from `github.com/terryyutian/KLiCKe-Corpus` | No terms file in the archive |
 
-**Open item for the user:** both corpora are published for academic research
-use, but neither archive contains a written grant covering *model training*
-specifically. Confirm the on-site terms permit training before any checkpoint
+**Aalto:** the readme's grant covers research model training and requires
+citing Dhakal, Feit, Kristensson & Oulasvirta, *Observations on Typing from
+136 Million Keystrokes*, CHI 2018 (doi 10.1145/3173574.3174220). It is
+**non-commercial only** — a commercial deployment of a model trained on this
+data is not covered.
+
+**Open item for the user:** KLiCKe ships no terms file. Confirm its
+distribution terms permit model training before any checkpoint trained on it
 is published or served. This does not block local development.
 
 ---
@@ -111,13 +116,55 @@ Counts from a 200-file sample of WritingTask.
 
 Source: `data/raw/aalto/`.
 
-**Status: download incomplete at time of writing** (~1.0 GB of ~4.4 GB via
-`curl` from `userinterfaces.aalto.fi/136Mkeystrokes/data/Keystrokes.zip`). The
-archive has a valid local header but no end-of-central-directory record until
-the transfer finishes, so it cannot be extracted or inspected yet.
+Downloaded (1.57 GB) and extracted to 18 GB / 168,595 files.
 
-This section must be filled in from the real files before `adapters/aalto.py`
-is trusted — the same rule that applied to KLiCKe applies here. The column names
-currently guessed in the plan (`PARTICIPANT_ID`, `TEST_SECTION_ID`, `SENTENCE`,
-`PRESS_TIME`, `RELEASE_TIME`, `LETTER`) are **unverified**; the adapter's first
-test asserts them against the real header and will fail loudly if they are wrong.
+### Layout
+
+| Path | Contents |
+|---|---|
+| `Keystrokes/files/<participant>_keystrokes.txt` | 168,593 logs, one per participant, 15 sentences each |
+| `Keystrokes/files/metadata_participants.txt` | Demographics + aggregate speed/error stats |
+| `Keystrokes/files/readme.txt` | Official column documentation and license |
+
+**Files are TAB-separated with a `.txt` extension**, not CSV. The test fixture
+keeps the `.txt` extension for that reason.
+
+### Columns
+
+One row = one keypress. Column names match the plan's guesses exactly.
+
+| Column | Dtype | Meaning |
+|---|---|---|
+| `PARTICIPANT_ID` | Int64 | Participant |
+| `TEST_SECTION_ID` | Int64 | The presented sentence — **this is the session key** |
+| `SENTENCE` | String | Target text shown to the participant |
+| `USER_INPUT` | String | What the participant actually submitted — tighter replay ground truth than `SENTENCE` |
+| `KEYSTROKE_ID` | Int64 | Keypress ID |
+| `PRESS_TIME` / `RELEASE_TIME` | Int64 | **Unix epoch ms**, so sessions must be rebased to zero |
+| `LETTER` | String | Literal character, or a name: `BKSP`, `SHIFT`, `CAPS_LOCK` |
+| `KEYCODE` | Int64 | JavaScript keycode (8 = backspace, 16 = shift, 32 = space) |
+
+Useful `metadata_participants.txt` fields: `KEYBOARD_TYPE`
+(`full` 73,759 / `laptop` 91,250 / `small` 1,886 / `on-screen` 1,699) and
+`NATIVE_LANGUAGE` (`en` 141,499 of 168,594).
+
+### Quirks
+
+1. **Quote characters shear rows.** Sentences contain apostrophes and quotation
+   marks. Read with `quote_char=None`, otherwise polars treats them as field
+   delimiters and emits `CSV malformed` warnings while silently mangling rows.
+2. **`LETTER` is null on ~7.8% of rows**, concentrated in about 10% of
+   participants — the readme's "keystrokes are not logged or not displayed
+   correctly, the keycode is used instead" case. A keycode cannot recover
+   letter *case*, so affected sessions are **dropped** rather than guessed at.
+3. **`LETTER` can disagree with `KEYCODE`.** Participant 100001 logs
+   `LETTER='y'` on a row whose `KEYCODE=84` (`T`). Same root cause as above.
+4. **Modifier rows carry no text.** `SHIFT` and `CAPS_LOCK` rows are skipped;
+   only single characters and `BKSP` become events.
+5. **Replay fidelity against `USER_INPUT`:** over 1,605 real sessions, 76.0%
+   replay byte-exact, mean edit-distance similarity 0.9875, and 98.0% score
+   at least 0.90. The residual is corpus logging noise, not adapter error.
+   Compare with edit distance, never positional overlap — one dropped
+   keystroke shifts every later character.
+6. **Mobile is out of scope** per the plan. Filter to `KEYBOARD_TYPE` in
+   {`full`, `laptop`} via `aalto.physical_keyboard_participants()`.

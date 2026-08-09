@@ -1,0 +1,193 @@
+PARTICIPANT_ID	TEST_SECTION_ID	SENTENCE	USER_INPUT	KEYSTROKE_ID	PRESS_TIME	RELEASE_TIME	LETTER	KEYCODE
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891207	1473275372512	1473275372663	SHIFT	16
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891214	1473275372583	1473275372703	W	87
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891219	1473275372759	1473275372903	a	65
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891226	1473275372831	1473275372975	s	83
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891231	1473275372943	1473275373079	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891236	1473275373127	1473275373255	w	87
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891246	1473275373231	1473275373431	o	79
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891249	1473275373367	1473275373503	n	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891253	1473275373495	1473275373559	d	68
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891259	1473275373639	1473275373799	e	69
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891264	1473275373727	1473275373847	r	82
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891285	1473275373807	1473275373967	i	73
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891289	1473275373887	1473275374007	n	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891293	1473275373975	1473275374119	g	71
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891300	1473275374112	1473275374223	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891305	1473275374207	1473275374359	i	73
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891324	1473275374311	1473275374432	f	70
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891329	1473275374391	1473275374543	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891337	1473275374488	1473275374568	y	89
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891347	1473275374624	1473275374783	o	79
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891360	1473275374688	1473275374839	u	85
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891404	1473275374792	1473275374887	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891409	1473275374864	1473275374975	a	65
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891414	1473275374983	1473275375119	n	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891419	1473275375103	1473275375223	d	68
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891423	1473275375183	1473275375287	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891428	1473275375311	1473275375407	SHIFT	16
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891448	1473275375367	1473275375503	N	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891450	1473275375527	1473275375623	a	65
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891454	1473275375599	1473275375800	t	84
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891459	1473275375720	1473275375855	a	65
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891465	1473275375839	1473275376015	l	76
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891484	1473275375919	1473275376087	i	73
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891489	1473275376047	1473275376183	e	69
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891494	1473275376167	1473275376272	 	32
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891501	1473275376263	1473275376399	c	67
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891506	1473275376343	1473275376495	o	79
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891543	1473275376439	1473275376503	n	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891547	1473275376583	1473275376671	n	78
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891552	1473275376679	1473275376831	e	69
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891558	1473275376743	1473275376855	c	67
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891567	1473275376967	1473275377071	t	84
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892084	1473275377151	1473275377503	SHIFT	16
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51891575	1473275377319	1473275377415	?	191
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892091	1473275377663	1473275377743	BKSP	8
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892100	1473275377775	1473275377871	e	69
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892107	1473275377951	1473275378031	d	68
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892120	1473275378119	1473275378311	SHIFT	16
+100001	1090979	Was wondering if you and Natalie connected?	Was wondering if you and Natalie connected?	51892114	1473275378183	1473275378287	?	191
+100001	1091001	Please give me a call.	Please give me a call.	51892439	1473275385879	1473275386015	SHIFT	16
+100001	1091001	Please give me a call.	Please give me a call.	51892445	1473275385911	1473275386071	P	80
+100001	1091001	Please give me a call.	Please give me a call.	51892452	1473275386023	1473275386183	l	76
+100001	1091001	Please give me a call.	Please give me a call.	51892459	1473275386103	1473275386255	e	69
+100001	1091001	Please give me a call.	Please give me a call.	51892465	1473275386247	1473275386359	a	65
+100001	1091001	Please give me a call.	Please give me a call.	51892495	1473275386343	1473275386511	s	83
+100001	1091001	Please give me a call.	Please give me a call.	51892500	1473275386463	1473275386599	e	69
+100001	1091001	Please give me a call.	Please give me a call.	51892503	1473275386591	1473275386695	 	32
+100001	1091001	Please give me a call.	Please give me a call.	51892508	1473275386687	1473275386815	g	71
+100001	1091001	Please give me a call.	Please give me a call.	51892510	1473275386807	1473275386951	i	73
+100001	1091001	Please give me a call.	Please give me a call.	51892526	1473275386935	1473275387063	v	86
+100001	1091001	Please give me a call.	Please give me a call.	51892532	1473275387007	1473275387135	e	69
+100001	1091001	Please give me a call.	Please give me a call.	51892540	1473275387071	1473275387215	 	32
+100001	1091001	Please give me a call.	Please give me a call.	51892547	1473275387191	1473275387303	m	77
+100001	1091001	Please give me a call.	Please give me a call.	51892554	1473275387263	1473275387399	e	69
+100001	1091001	Please give me a call.	Please give me a call.	51892569	1473275387376	1473275387463	 	32
+100001	1091001	Please give me a call.	Please give me a call.	51892572	1473275387447	1473275387551	a	65
+100001	1091001	Please give me a call.	Please give me a call.	51892577	1473275387543	1473275387655	 	32
+100001	1091001	Please give me a call.	Please give me a call.	51892589	1473275387663	1473275387831	c	67
+100001	1091001	Please give me a call.	Please give me a call.	51892653	1473275387759	1473275387871	a	65
+100001	1091001	Please give me a call.	Please give me a call.	51892648	1473275387783	1473275387855	l	76
+100001	1091001	Please give me a call.	Please give me a call.	51892659	1473275387935	1473275388007	l	76
+100001	1091001	Please give me a call.	Please give me a call.	51892664	1473275388103	1473275388191	.	190
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895219	1473275416530	1473275416839	SHIFT	16
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895226	1473275416749	1473275416886	B	66
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895230	1473275416995	1473275417061	u	85
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895235	1473275417123	1473275417189	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895239	1473275417235	1473275417354	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895245	1473275417432	1473275417511	y	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895385	1473275417652	1473275417739	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895388	1473275417804	1473275417875	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895394	1473275417999	1473275418071	BKSP	8
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895400	1473275418136	1473275418219	BKSP	8
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895405	1473275418284	1473275418371	BKSP	8
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895414	1473275418972	1473275419045	h	72
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895419	1473275419109	1473275419203	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895432	1473275419219	1473275419299	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895474	1473275419375	1473275419443	p	80
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895479	1473275419459	1473275419573	a	65
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895482	1473275419573	1473275419655	c	67
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895485	1473275419766	1473275419870	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895490	1473275419870	1473275419984	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895549	1473275420095	1473275420144	h	72
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895554	1473275420145	1473275420316	a	65
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895559	1473275420261	1473275420376	s	83
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895569	1473275420501	1473275420592	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895575	1473275420655	1473275420805	n	78
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895644	1473275420755	1473275420839	o	79
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895645	1473275420886	1473275420972	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895648	1473275420972	1473275421037	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895653	1473275421100	1473275421215	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895657	1473275421294	1473275421376	n	78
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895664	1473275421501	1473275421604	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895811	1473275422516	1473275422608	i	73
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895820	1473275422716	1473275422855	r	82
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895830	1473275422788	1473275422917	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895843	1473275423026	1473275423096	l	76
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895850	1473275423236	1473275423389	y	89
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895925	1473275423351	1473275423421	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895932	1473275423500	1473275423647	c	67
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895939	1473275423589	1473275423672	a	65
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895945	1473275423703	1473275423783	l	76
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895951	1473275423861	1473275423926	m	77
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51895960	1473275423988	1473275424148	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896053	1473275424320	1473275424372	d	68
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896062	1473275424497	1473275424576	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896070	1473275424952	1473275425037	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896073	1473275425085	1473275425138	h	72
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896084	1473275425172	1473275425221	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896132	1473275425238	1473275425305	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896135	1473275425430	1473275425478	n	78
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896144	1473275425509	1473275425655	a	65
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896151	1473275425608	1473275425688	t	84
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896155	1473275425782	1473275425917	i	73
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896252	1473275425844	1473275425977	o	79
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896257	1473275426024	1473275426119	n	78
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896261	1473275426338	1473275426406	'	222
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896262	1473275426484	1473275426587	s	83
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896266	1473275426619	1473275426721	 	32
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896268	1473275427114	1473275427191	n	78
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896346	1473275427227	1473275427376	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896349	1473275427309	1473275427439	r	82
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896353	1473275427704	1473275427820	v	86
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896358	1473275427852	1473275428073	e	69
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896392	1473275427984	1473275428106	s	83
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896398	1473275428215	1473275428284	.	190
+100007	1091059	But the pact has not entirely calmed the nation's nerves.	But the pact has not entirely calmed the nation's nerves. 	51896403	1473275428320	1473275428422	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896692	1473275430864	1473275431107	SHIFT	16
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896694	1473275430990	1473275431208	W	87
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896696	1473275431169	1473275431283	e	69
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896700	1473275431408	1473275431477	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896704	1473275431570	1473275431621	p	80
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896707	1473275431731	1473275431831	r	82
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896741	1473275431850	1473275431953	o	79
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896745	1473275432156	1473275432205	b	66
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896750	1473275432283	1473275432387	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896753	1473275432371	1473275432453	b	66
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896755	1473275432547	1473275432628	l	76
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896787	1473275432688	1473275432839	y	89
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896791	1473275432785	1473275432873	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896796	1473275432998	1473275433087	h	72
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896799	1473275433101	1473275433282	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896819	1473275433202	1473275433343	v	86
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896821	1473275433295	1473275433391	e	69
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896823	1473275433406	1473275433492	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896827	1473275433508	1473275433592	t	84
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896830	1473275433608	1473275433810	o	79
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896952	1473275433758	1473275433859	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896958	1473275434424	1473275434492	d	68
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896968	1473275434570	1473275434637	i	73
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896971	1473275435563	1473275435755	s	83
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896979	1473275435704	1473275435833	c	67
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51896984	1473275436021	1473275436105	u	85
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897030	1473275436215	1473275436305	s	83
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897035	1473275436414	1473275436497	s	83
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897040	1473275436584	1473275436650	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897044	1473275436843	1473275436925	t	84
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897047	1473275437066	1473275437261	r	82
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897106	1473275437187	1473275437362	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897111	1473275438164	1473275438310	d	68
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897116	1473275438259	1473275438388	e	69
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897120	1473275438419	1473275438504	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897123	1473275438613	1473275438678	b	66
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897126	1473275438725	1473275438776	e	69
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897151	1473275438902	1473275438970	h	72
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897155	1473275439048	1473275439185	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897160	1473275439359	1473275439457	v	86
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897164	1473275439473	1473275439626	i	73
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897229	1473275439573	1473275439645	o	79
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897237	1473275439801	1473275439898	r	82
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897241	1473275440156	1473275440236	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897245	1473275440268	1473275440377	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897248	1473275440377	1473275440442	n	78
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897253	1473275440489	1473275440554	d	68
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897299	1473275440554	1473275440635	 	32
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897307	1473275440791	1473275440888	m	77
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897314	1473275440903	1473275441054	a	65
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897323	1473275441002	1473275441085	r	82
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897330	1473275441196	1473275441260	g	71
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897370	1473275441292	1473275441391	i	73
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897375	1473275441469	1473275441558	n	78
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897378	1473275441730	1473275441853	/	191
+100007	1091084	We probably have to discuss trade behavior and margin.	We probably have to discuss trade behavior and margin/ 	51897382	1473275441915	1473275442051	 	32
