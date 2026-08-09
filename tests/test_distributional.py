@@ -101,7 +101,10 @@ def test_pooling_sessions_does_not_invent_negative_intervals():
     assert (naive["iki"] < 0).any(), "naive concatenation should be broken"
 
 
+@pytest.mark.filterwarnings("ignore:invalid value encountered in log1p")
 def test_compare_sessions_is_finite_where_flat_compare_is_nan():
+    """The flat path is *expected* to warn here -- it is the broken behaviour
+    this test exists to pin down."""
     from typeshi.eval.distributional import compare_sessions
 
     sessions = [_session([100, 120, 140, 160]) for _ in range(4)]
