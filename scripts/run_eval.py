@@ -1,30 +1,50 @@
 """Scores a trained checkpoint: distributional metrics + discriminator.
 
-Tier-1 passes when the discriminator has teeth (>= 0.9 against the naive
-heuristic baseline) and still cannot separate our output from real typing
-(<= 0.55).
+Tier-1 passes only when ALL of the following hold (each exists because a
+review found the gate exploitable without it):
+
+- teeth: the discriminator separates real sessions from the naive heuristic
+  baseline (>= 0.90) AND from timing-shuffled real sessions (>= 0.75) -- the
+  second catches discriminators that only read marginal distributions.
+- model: paired, group-aware CV accuracy vs our generations sits in
+  [0.40, 0.55]. Paired grouping is mandatory (unpaired CV on paired data
+  scores 0.085 on EXACT COPIES); the lower bound exists because below-chance
+  accuracy means leakage, not realism.
+- validity: >= 90% of generation attempts parse AND actually type the target
+  (transcription events only, replay similarity >= 0.8). Without this a model
+  that fails 99% of the time is judged on its cherry-picked survivors, and
+  realistic-timing garbage that never types the target can pass.
+- control: real-vs-real sits in [0.40, 0.60] -- outside that band the
+  featurization or population is broken and no other number is meaningful.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
-import math
-
 from typeshi.adapters import aalto
+from typeshi.buffer import replay
+from typeshi.events import EventType
 from typeshi.eval.discriminator import (
     heuristic_baseline,
     real_vs_real_control,
+    shuffle_timing,
     train_discriminator,
 )
 from typeshi.eval.distributional import compare_sessions
 from typeshi.generate import generate
-from typeshi.labels import compute_labels
+from typeshi.labels import _levenshtein, compute_labels
 
 PASS_MODEL_MAX = 0.55
+PASS_MODEL_MIN = 0.40          # below-chance = leakage, never realism
 PASS_TEETH_MIN = 0.90
+PASS_SHUFFLE_TEETH_MIN = 0.75  # serial-dependence sensitivity
+PASS_VALID_MIN = 0.90
+CONTROL_BAND = (0.40, 0.60)
+REPLAY_SIM_MIN = 0.80
 
 
 def load_test_writers(split_path: Path, allow_unsplit: bool) -> set[str] | None:
@@ -36,7 +56,14 @@ def load_test_writers(split_path: Path, allow_unsplit: bool) -> set[str] | None:
     """
     if split_path.exists():
         payload = json.loads(split_path.read_text())
+        train = set(payload["train_writers"])
         writers = set(payload["test_writers"])
+        overlap = train & writers
+        if overlap:
+            raise SystemExit(
+                f"{split_path} is corrupt: {len(overlap)} writers appear in both "
+                "train and test sets"
+            )
         print(f"scoring {len(writers)} held-out writers from {split_path}")
         return writers
     if allow_unsplit:
@@ -48,6 +75,36 @@ def load_test_writers(split_path: Path, allow_unsplit: bool) -> set[str] | None:
         "is what keeps the eval off training writers. Rebuild the dataset, copy "
         "the file across, or pass --allow-unsplit if you accept a leaky number."
     )
+
+
+def resolve_split_path(checkpoint: Path, explicit: Path) -> Path:
+    """Prefers the split the checkpoint was trained against.
+
+    train_motor copies split.json into the checkpoint directory precisely so
+    a later rebuild of data/processed cannot silently swap the writer split
+    under an existing checkpoint.
+    """
+    bound = checkpoint / "split.json"
+    if bound.exists():
+        print(f"using the split bound to the checkpoint: {bound}")
+        return bound
+    return explicit
+
+
+def transcription_generation_ok(events, target_text: str) -> bool:
+    """A transcription generation must actually type the target.
+
+    Parsing alone is not enough: a stream of plausible timings over the wrong
+    characters is valid grammar and perfect nonsense. Require transcription
+    event types only, and replayed text within edit distance of the target.
+    """
+    if not events:
+        return False
+    if any(e.type not in (EventType.KEY, EventType.BACKSPACE) for e in events):
+        return False
+    produced = replay(events)
+    similarity = 1 - _levenshtein(produced, target_text) / max(len(target_text), 1)
+    return similarity >= REPLAY_SIM_MIN
 
 
 def jsonable(value):
@@ -74,9 +131,8 @@ def main() -> None:
         "--split",
         type=Path,
         default=Path("data/processed/split.json"),
-        help="writer split written by build_dataset.py; scoring is restricted "
-             "to its test writers so the model is never evaluated on writers "
-             "it trained on",
+        help="writer split written by build_dataset.py; a copy bound to the "
+             "checkpoint takes precedence when present",
     )
     ap.add_argument(
         "--allow-unsplit",
@@ -94,12 +150,15 @@ def main() -> None:
     tok = AutoTokenizer.from_pretrained(args.checkpoint)
     model = AutoPeftModelForCausalLM.from_pretrained(args.checkpoint, device_map="auto")
 
-    test_writers = load_test_writers(args.split, args.allow_unsplit)
+    split_path = resolve_split_path(args.checkpoint, args.split)
+    test_writers = load_test_writers(split_path, args.allow_unsplit)
 
     real: list = []
     fake: list = []
     baseline: list = []
-    skipped = 0
+    attempts = 0
+    rejected_malformed = 0
+    rejected_wrong_text = 0
     skipped_train_writer = 0
 
     for i, (writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
@@ -109,50 +168,67 @@ def main() -> None:
             skipped_train_writer += 1
             continue
         labels = compute_labels(events, target)
+        attempts += 1
         try:
             generated = generate(
                 model, tok, target, labels,
                 mode="transcription", temperature=args.temperature, seed=i,
             )
         except ValueError:
-            # The model emitted something outside the event grammar.
-            skipped += 1
+            rejected_malformed += 1
             continue
-        if not generated:
-            skipped += 1
+        if not transcription_generation_ok(generated, target):
+            rejected_wrong_text += 1
             continue
         real.append(events)
         fake.append(generated)
         baseline.append(heuristic_baseline(target, wpm=labels.wpm or 60, seed=i))
 
     if not real:
-        raise SystemExit("no sessions scored; check --held-out and the checkpoint")
+        raise SystemExit("no valid generations to score; check the checkpoint")
 
-    _, acc_model = train_discriminator(real, fake)
-    _, acc_baseline = train_discriminator(real, baseline)
+    success_rate = len(real) / attempts if attempts else 0.0
+
+    # All comparisons against generations/baselines are PAIRED (same targets).
+    _, acc_model = train_discriminator(real, fake, paired=True)
+    _, acc_model_timing = train_discriminator(
+        real, fake, paired=True, count_features=False
+    )
+    _, acc_baseline = train_discriminator(real, baseline, paired=True)
+    shuffled = [shuffle_timing(s, seed=i) for i, s in enumerate(real)]
+    _, acc_shuffled = train_discriminator(real, shuffled, paired=True)
     control = real_vs_real_control(real)
+
+    gates = {
+        "pass_discriminator_has_teeth": acc_baseline >= PASS_TEETH_MIN,
+        "pass_serial_dependence_teeth": acc_shuffled >= PASS_SHUFFLE_TEETH_MIN,
+        "pass_model": PASS_MODEL_MIN <= acc_model <= PASS_MODEL_MAX,
+        "pass_generation_validity": success_rate >= PASS_VALID_MIN,
+        "pass_control_near_chance": CONTROL_BAND[0] <= control <= CONTROL_BAND[1],
+    }
 
     report = {
         "sessions_scored": len(real),
+        "generation_attempts": attempts,
+        "generation_success_rate": success_rate,
+        "generations_rejected_as_malformed": rejected_malformed,
+        "generations_rejected_wrong_text": rejected_wrong_text,
         "sessions_skipped_not_held_out": skipped_train_writer,
         "held_out_writers_only": test_writers is not None,
-        "generations_rejected_as_malformed": skipped,
         "temperature": args.temperature,
         "distributional": compare_sessions(real, fake),
         "discriminator_accuracy_vs_model": acc_model,
+        "discriminator_accuracy_vs_model_timing_only": acc_model_timing,
         "discriminator_accuracy_vs_heuristic_baseline": acc_baseline,
+        "discriminator_accuracy_vs_shuffled_real": acc_shuffled,
         "discriminator_accuracy_real_vs_real_control": control,
-        "pass_model": acc_model <= PASS_MODEL_MAX,
-        "pass_discriminator_has_teeth": acc_baseline >= PASS_TEETH_MIN,
+        **gates,
+        "tier1_met": all(gates.values()),
+        "note_below_chance": (
+            "model accuracy under 0.40 indicates leakage, not realism"
+            if acc_model < PASS_MODEL_MIN else None
+        ),
     }
-    report["tier1_met"] = bool(
-        report["pass_model"] and report["pass_discriminator_has_teeth"]
-    )
-    # The control bounds how far below the model score can meaningfully sit:
-    # if real-vs-real already scores well above chance, the writer population
-    # itself is separable and the model number is inflated.
-    report["control_is_near_chance"] = bool(control < 0.60)
-
     payload = json.dumps(jsonable(report), indent=2)
     args.out.write_text(payload)
     print(payload)

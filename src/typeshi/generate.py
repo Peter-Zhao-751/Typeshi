@@ -30,7 +30,24 @@ def generate(
         max_new_tokens=max_new_tokens,
         pad_token_id=tok.pad_token_id,
     )
-    completion = tok.decode(out[0][inputs["input_ids"].shape[1]:],
-                            skip_special_tokens=False)
-    completion = completion.replace(tok.eos_token or "", "").replace(" ", "")
-    return deserialize(completion)
+    new_ids = out[0][inputs["input_ids"].shape[1]:].tolist()
+
+    # Qwen ends generation on either <|im_end|> or <|endoftext|>, but
+    # tok.eos_token names only the first; string-stripping it left the other
+    # in the text and a perfectly valid stream was rejected as malformed.
+    # Truncate at ANY configured terminator id instead of string surgery.
+    eos_ids = {i for i in [tok.eos_token_id, tok.pad_token_id] if i is not None}
+    gen_config = getattr(model, "generation_config", None)
+    if gen_config is not None and gen_config.eos_token_id is not None:
+        configured = gen_config.eos_token_id
+        eos_ids.update(configured if isinstance(configured, (list, tuple))
+                       else [configured])
+    for j, token_id in enumerate(new_ids):
+        if token_id in eos_ids:
+            new_ids = new_ids[:j]
+            break
+
+    # No whitespace normalisation: the extended tokenizer decodes adjacent
+    # grammar tokens byte-exactly, so any stray space IS malformed output and
+    # deserialize should reject it rather than have it papered over.
+    return deserialize(tok.decode(new_ids, skip_special_tokens=False))

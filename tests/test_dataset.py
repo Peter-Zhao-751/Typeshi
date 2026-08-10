@@ -113,3 +113,31 @@ def test_build_prompt_is_shared_by_training_and_inference():
 
 def test_empty_session_produces_no_examples():
     assert build_examples("hello", [], LABELS, mode="transcription") == []
+
+
+def test_written_state_is_capped_to_a_tail():
+    """Uncapped WRITTEN state pushed 10 of 4,680 sample prompts past the
+    trainer's max_length, truncating their completions."""
+    from typeshi.dataset import WRITTEN_TAIL_CHARS, build_prompt
+
+    long_text = "x" * 3000
+    prompt = build_prompt("target", LABELS, "composition",
+                          written_so_far=long_text, cursor=3000)
+    written = prompt.split("<WRITTEN>")[1].split("<CUR:")[0]
+    assert len(written) == WRITTEN_TAIL_CHARS
+
+
+def test_corpus_text_containing_a_marker_is_refused():
+    from typeshi.dataset import build_prompt
+
+    with pytest.raises(ValueError):
+        build_prompt("essay quoting <PROCESS> literally", LABELS, "composition")
+
+
+def test_unsupported_chars_flags_non_ascii_keys():
+    from typeshi.serialize import unsupported_chars
+
+    ok = _type("hello world")
+    assert unsupported_chars(ok) == set()
+    cyrillic = ok + [Event.key("е", 5000, 5050)]
+    assert unsupported_chars(cyrillic) == {"е"}

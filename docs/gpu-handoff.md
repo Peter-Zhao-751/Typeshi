@@ -101,19 +101,29 @@ python scripts/run_eval.py --checkpoint checkpoints/motor --n 200 \
   --out eval_report.json
 ```
 
-Tier-1 passes when both hold:
+Tier-1 passes only when ALL five gates hold (each closes a demonstrated
+exploit — an adversarial review showed the original two-gate version passed
+on exact-copy fakes and on cherry-picked 1% survivor generations):
 
-- `pass_discriminator_has_teeth` — accuracy ≥ 0.90 against the naive
-  heuristic baseline, proving the discriminator can detect fake timing at all
-- `pass_model` — accuracy ≤ 0.55 against our generations
+- `pass_discriminator_has_teeth` — ≥ 0.90 vs the naive heuristic baseline
+- `pass_serial_dependence_teeth` — ≥ 0.75 vs timing-shuffled REAL sessions;
+  catches discriminators that only read marginal distributions
+- `pass_model` — paired grouped-CV accuracy vs our generations in
+  **[0.40, 0.55]**. The lower bound matters: unpaired CV on paired data
+  scored 0.085 on exact copies, and below-chance means leakage, not realism
+- `pass_generation_validity` — ≥ 90% of attempts parse AND type the target
+  (replay similarity ≥ 0.8, transcription events only)
+- `pass_control_near_chance` — real-vs-real in [0.40, 0.60]
 
-Also read `discriminator_accuracy_real_vs_real_control`. It should sit near
-chance; if it is high, the writer population itself is separable and the model
-number is inflated rather than good.
+`discriminator_accuracy_vs_model_timing_only` reports the same comparison
+without event-count features; a large gap between it and the full number
+means the model is being caught on length, not timing.
 
-The eval refuses to run without `data/processed/split.json` — that is
-deliberate. Scoring realism on writers the model trained on would pass Tier-1
-for the wrong reason.
+The eval refuses to run without a writer split — that is deliberate.
+Scoring realism on writers the model trained on would pass Tier-1 for the
+wrong reason. Training copies `split.json` into the checkpoint directory and
+the eval prefers that bound copy, so a later dataset rebuild cannot swap the
+held-out writers under an existing checkpoint.
 
 ## 6. Bring back
 

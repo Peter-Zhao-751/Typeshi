@@ -103,7 +103,15 @@ Counts from a 200-file sample of WritingTask.
 4. **Non-monotonic `DownTime`.** Key rollover means row *n+1* can have a smaller
    `DownTime` than row *n* (e.g. `l` at 48797 followed by `i` at 48959 while `l`
    is still held). Sort by `DownTime` before parsing, and expect overlaps.
-5. **~4% of sessions do not replay exactly.** The adapter reproduces 575/600
+5. **Paste and drag-drop sessions are dropped (13.8% + 1%).** A `Paste` row
+   expands to one KEY event per character at a single timestamp — 142 paste
+   rows became 15,031 zero-IKI "keystrokes" in 500 logs. A motor model must
+   not learn that. Phase 2 may add a real `<PASTE>` event instead.
+6. **`Nonproduction` rows carry the caret's real move time.** The adapter
+   stamps a cursor move with the navigation row's own timestamp when the next
+   edit confirms the position (85,970 affected rows in 500 logs); otherwise a
+   pause between moving and typing lands on the wrong side of the move.
+7. **~4% of sessions do not replay exactly.** The adapter reproduces 575/600
    (95.8%) of WritingTask sessions byte for byte. The failures are
    transposition-shaped (`"cryptographcry"` for `"cryptography,"`), caused by
    the logger recording a stale `CursorPosition` during fast rollover. This is

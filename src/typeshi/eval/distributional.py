@@ -25,7 +25,8 @@ def timing_features(events: list[Event]) -> dict[str, np.ndarray]:
             run = 1
         else:
             run += 1
-    bursts.append(run)
+    if len(events):  # an empty session has no burst, not a burst of one
+        bursts.append(run)
 
     return {"iki": iki, "hold": hold, "pause": pause,
             "burst": np.array(bursts, dtype=float)}
@@ -58,7 +59,15 @@ def kl_divergence(p_samples, q_samples, bins: int = 64) -> float:
     """Symmetrized KL over a shared log-spaced histogram."""
     p_samples = np.asarray(p_samples, dtype=float)
     q_samples = np.asarray(q_samples, dtype=float)
-    if p_samples.size == 0 or q_samples.size == 0:
+    # Timings are positive milliseconds by construction; anything else here is
+    # a caller bug (e.g. concatenating rebased sessions). Reject rather than
+    # letting NaN/negatives silently vanish into empty histogram bins.
+    for name, x in (("p", p_samples), ("q", q_samples)):
+        if x.size and (not np.isfinite(x).all() or (x <= 0).any()):
+            raise ValueError(f"{name}_samples must be finite and positive")
+    # Below ~10 samples the +1e-9 smoothing dominates the estimate (a single
+    # 5 vs a single 7 scores ~20 bits of "divergence"), so refuse to guess.
+    if p_samples.size < 10 or q_samples.size < 10:
         return float("nan")
 
     lo = max(min(p_samples.min(), q_samples.min()), 1e-3)

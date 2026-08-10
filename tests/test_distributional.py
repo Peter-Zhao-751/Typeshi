@@ -102,16 +102,31 @@ def test_pooling_sessions_does_not_invent_negative_intervals():
 
 
 @pytest.mark.filterwarnings("ignore:invalid value encountered in log1p")
-def test_compare_sessions_is_finite_where_flat_compare_is_nan():
-    """The flat path is *expected* to warn here -- it is the broken behaviour
-    this test exists to pin down."""
-    from typeshi.eval.distributional import compare_sessions
+def test_flat_concatenation_is_rejected_loudly_where_pooling_works():
+    """Concatenating rebased sessions fabricates negative IKIs. That used to
+    surface as a silent NaN; kl_divergence now rejects it outright, while the
+    pooled path stays finite."""
+    from typeshi.eval.distributional import compare_sessions, kl_divergence
 
     sessions = [_session([100, 120, 140, 160]) for _ in range(4)]
-    flat = compare([e for s in sessions for e in s], [e for s in sessions for e in s])
+    flat = [e for s in sessions for e in s]
+    flat_iki = timing_features(flat)["iki"]
+    with pytest.raises(ValueError):
+        kl_divergence(flat_iki, flat_iki)
     pooled = compare_sessions(sessions, sessions)
-    assert np.isnan(flat["iki"]["frechet"])
     assert pooled["iki"]["frechet"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_kl_refuses_tiny_samples_where_smoothing_dominates():
+    from typeshi.eval.distributional import kl_divergence
+
+    assert np.isnan(kl_divergence([5.0], [7.0]))
+    assert np.isnan(kl_divergence(list(range(1, 10)), list(range(1, 50))))
+
+
+def test_empty_session_has_no_burst():
+    f = timing_features([])
+    assert f["burst"].size == 0
 
 
 def test_pooled_features_ignores_empty_sessions():

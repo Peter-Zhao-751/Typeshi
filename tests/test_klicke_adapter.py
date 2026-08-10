@@ -104,3 +104,46 @@ def test_sessions_that_do_not_replay_exactly_are_dropped(tmp_path):
         FIXTURE.with_suffix(".txt").read_text(encoding="utf-8"), encoding="utf-8"
     )
     assert list(iter_sessions(bad)) == []
+
+
+def _klicke_rows(rows):
+    """Builds a minimal KLiCKe frame from (DownTime, UpTime, DownEvent,
+    CursorPosition, TextChange, Activity) tuples."""
+    return pl.DataFrame({
+        "DownTime": [r[0] for r in rows], "UpTime": [r[1] for r in rows],
+        "DownEvent": [r[2] for r in rows], "CursorPosition": [r[3] for r in rows],
+        "TextChange": [r[4] for r in rows], "Activity": [r[5] for r in rows],
+    })
+
+
+def test_cursor_moves_keep_their_own_timestamp():
+    """A cursor jump at second 1 followed by typing at second 10 must place
+    the nine-second pause AFTER the move, not before it. The lazy-seek
+    version stamped the move at second 10 -- 85,970 affected rows in the
+    first 500 corpus logs."""
+    from typeshi.adapters.klicke import parse_session
+    from typeshi.events import EventType
+
+    text, events = parse_session(_klicke_rows([
+        (0, 100, "a", 1, "a", "Input"),
+        (200, 300, "b", 2, "b", "Input"),
+        (1000, 1000, "Leftclick", 0, "NoChange", "Nonproduction"),
+        (10000, 10100, "c", 1, "c", "Input"),
+    ]))
+    assert text == "cab"
+    cursor = next(e for e in events if e.type is EventType.CURSOR)
+    assert cursor.press_time == 1000, (
+        f"cursor move stamped at {cursor.press_time}, expected its own 1000"
+    )
+
+
+def test_paste_sessions_are_dropped_not_flattened():
+    """A 100-char paste is not 100 keystrokes at one timestamp; sessions
+    containing Paste (13.8% of the corpus) or Move are dropped."""
+    from typeshi.adapters.klicke import UnsupportedSession, parse_session
+
+    with pytest.raises(UnsupportedSession):
+        parse_session(_klicke_rows([
+            (0, 100, "a", 1, "a", "Input"),
+            (500, 500, "v", 13, "pasted text!", "Paste"),
+        ]))

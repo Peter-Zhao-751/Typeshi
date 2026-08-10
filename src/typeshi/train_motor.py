@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 from typeshi import config
@@ -27,13 +28,18 @@ def select_backend(has_cuda: bool, has_bf16: bool, has_mps: bool) -> dict:
 
     bfloat16 weights combined with `device_map="auto"` segfault on Apple
     Silicon (torch 2.13, MPS): either alone is fine, together they crash while
-    loading. CUDA is the intended target and keeps bf16; everything else falls
-    back to fp32 so the same script still runs for smoke tests.
+    loading. CUDA is the intended target and keeps bf16.
+
+    CUDA WITHOUT bf16 also falls back to fp32: loading fp16 weights with
+    bf16=False and fp16 unset gives unscaled full-fp16 training -- no
+    GradScaler, a known divergence recipe. Every rentable card big enough for
+    this job (Ampere+) has bf16, so the correct-but-slow path is the honest
+    fallback for the rest.
     """
     if has_cuda and has_bf16:
         return {"dtype": "bfloat16", "device_map": "auto", "bf16": True}
     if has_cuda:
-        return {"dtype": "float16", "device_map": "auto", "bf16": False}
+        return {"dtype": "float32", "device_map": "auto", "bf16": False}
     if has_mps:
         # fp32 is the only precision that works reliably here. Measured on an
         # M5 Pro with torch 2.13: bfloat16 + device_map="auto" segfaults while
@@ -133,6 +139,10 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
         modules_to_save=(
             embedding_modules_to_save(tied_embeddings) if train_embeddings else None
         ),
+        # On tied models peft otherwise trains a COPY of embed_tokens while the
+        # output head keeps reading the frozen original: inputs learn the new
+        # tokens, emission never does.
+        ensure_weight_tying=tied_embeddings and train_embeddings,
     )
 
 
@@ -172,7 +182,9 @@ def main() -> None:
         dtype=getattr(torch, backend["dtype"]),
         device_map=backend["device_map"],
     )
-    model.resize_token_embeddings(len(tok))
+    # mean_resizing builds ~2 GiB fp32 covariance temporaries per embedding
+    # matrix, and our own seeding overwrites every new row anyway.
+    model.resize_token_embeddings(len(tok), mean_resizing=False)
     seeded = initialize_new_token_embeddings(model, args.base)
     print(f"seeded {seeded} event-token embeddings from their sub-word pieces")
     model = get_peft_model(
@@ -183,6 +195,23 @@ def main() -> None:
         ),
     )
     model.print_trainable_parameters()
+
+    if not args.freeze_embeddings:
+        embed_trainable = any(
+            param.requires_grad
+            for name, param in model.named_parameters()
+            if "embed" in name or "lm_head" in name
+        )
+        if not embed_trainable:
+            # peft's modules_to_save matches by suffix and silently ignores
+            # names the architecture doesn't have -- the event tokens would
+            # stay frozen at their seeds without anyone noticing.
+            raise SystemExit(
+                "embedding matrices did not become trainable; this "
+                "architecture's embedding modules are not named "
+                f"{embedding_modules_to_save(True)} -- extend "
+                "embedding_modules_to_save() for it"
+            )
 
     mode_marker = {"transcription": "<MODE:T>", "composition": "<MODE:C>"}[args.mode]
     ds = load_dataset("json", data_files=str(args.data), split="train")
@@ -216,6 +245,13 @@ def main() -> None:
     trainer.train()
     trainer.save_model(str(args.out))
     tok.save_pretrained(str(args.out))
+
+    # Bind the writer split to the checkpoint so a later dataset rebuild
+    # cannot silently swap held-out writers under this model's eval.
+    split = args.data.parent / "split.json"
+    if split.exists():
+        shutil.copy(split, args.out / "split.json")
+        print(f"bound {split} to the checkpoint")
 
 
 if __name__ == "__main__":

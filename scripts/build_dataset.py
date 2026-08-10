@@ -15,6 +15,24 @@ from typeshi import config
 from typeshi.adapters import aalto, klicke
 from typeshi.dataset import build_examples, split_by_writer
 from typeshi.labels import compute_labels
+from typeshi.serialize import unsupported_chars
+
+
+def session_examples(target: str, events, mode: str) -> list[dict] | None:
+    """Examples for one session, or None if the session cannot be represented.
+
+    Two integrity gates live here rather than in the adapters, because they are
+    properties of the token format, not of any corpus: characters without a
+    registered token (English-only vocabulary), and text containing a literal
+    prompt marker.
+    """
+    if unsupported_chars(events):
+        return None
+    labels = compute_labels(events, target)
+    try:
+        return build_examples(target, events, labels, mode)
+    except ValueError:  # prompt marker inside corpus text
+        return None
 
 
 def collect_aalto(root: Path, limit: int | None, seed: int) -> list[tuple[str, dict]]:
@@ -29,11 +47,16 @@ def collect_aalto(root: Path, limit: int | None, seed: int) -> list[tuple[str, d
         files = files[:limit]
 
     rows: list[tuple[str, dict]] = []
+    dropped = 0
     for path in files:
         for participant, target, events in aalto.iter_sessions(path):
-            labels = compute_labels(events, target)
-            for example in build_examples(target, events, labels, "transcription"):
-                rows.append((f"aalto:{participant}", example))
+            examples = session_examples(target, events, "transcription")
+            if examples is None:
+                dropped += 1
+                continue
+            rows += [(f"aalto:{participant}", ex) for ex in examples]
+    if dropped:
+        print(f"aalto: dropped {dropped} sessions (unsupported chars/markers)")
     return rows
 
 
@@ -46,11 +69,16 @@ def collect_klicke(root: Path, limit: int | None, seed: int) -> list[tuple[str, 
         files = files[:limit]
 
     rows: list[tuple[str, dict]] = []
+    dropped = 0
     for path in files:
         for writer, final_text, events in klicke.iter_sessions(path):
-            labels = compute_labels(events, final_text)
-            for example in build_examples(final_text, events, labels, "composition"):
-                rows.append((f"klicke:{writer}", example))
+            examples = session_examples(final_text, events, "composition")
+            if examples is None:
+                dropped += 1
+                continue
+            rows += [(f"klicke:{writer}", ex) for ex in examples]
+    if dropped:
+        print(f"klicke: dropped {dropped} sessions (unsupported chars/markers)")
     return rows
 
 

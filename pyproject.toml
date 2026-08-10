@@ -7,6 +7,7 @@ dependencies = ["polars>=1.0", "numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"
 [project.optional-dependencies]
 train = ["torch>=2.4", "transformers>=4.44", "peft>=0.12", "trl>=0.9", "datasets>=2.20", "accelerate>=0.33"]
 dev = ["pytest>=8.0"]
+mlx = ["mlx>=0.30", "mlx-lm>=0.30"]
 
 [build-system]
 requires = ["hatchling"]

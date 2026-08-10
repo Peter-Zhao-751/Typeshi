@@ -150,3 +150,85 @@ def test_eval_reads_the_held_out_writers(tmp_path):
         "train_writers": ["aalto:1", "aalto:2"], "test_writers": ["aalto:3"],
     }))
     assert load_test_writers(path, allow_unsplit=False) == {"aalto:3"}
+
+
+def test_paired_cv_scores_exact_copies_at_chance_not_below():
+    """THE showstopper: with unpaired folds, an exact copy of each real
+    session in the fake class scored 0.085 -- and a gate of 'accuracy <=
+    0.55' rewards that. Grouped folds keep each pair together, restoring the
+    definitionally correct 0.5."""
+    rng = np.random.default_rng(0)
+    real = [_lognormal_session(rng) for _ in range(100)]
+    copies = [list(s) for s in real]
+
+    _, unpaired = train_discriminator(real, copies, seed=0)
+    _, paired = train_discriminator(real, copies, seed=0, paired=True)
+    assert unpaired < 0.30, "the leak this guards against has disappeared?"
+    assert 0.40 <= paired <= 0.60
+
+
+def test_paired_cv_requires_equal_counts():
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError):
+        train_discriminator(
+            [_lognormal_session(rng)] * 4, [_lognormal_session(rng)] * 3,
+            paired=True,
+        )
+
+
+def test_shuffled_timing_preserves_gap_multiset_and_chars():
+    from typeshi.eval.discriminator import shuffle_timing
+
+    rng = np.random.default_rng(0)
+    s = _lognormal_session(rng, n=50)
+    sh = shuffle_timing(s, seed=1)
+    gaps = sorted(b.press_time - a.press_time for a, b in zip(s, s[1:]))
+    sgaps = sorted(b.press_time - a.press_time for a, b in zip(sh, sh[1:]))
+    assert gaps == sgaps
+    assert [e.char for e in sh] == [e.char for e in s]
+    holds = [e.release_time - e.press_time for e in s]
+    sholds = [e.release_time - e.press_time for e in sh]
+    assert holds == sholds
+
+
+def test_timing_only_features_are_shorter_than_full():
+    rng = np.random.default_rng(0)
+    s = _lognormal_session(rng)
+    assert featurize(s, count_features=False).size == featurize(s).size - 4
+
+
+def test_eval_gate_rejects_wrong_text_generations(tmp_path):
+    """Valid grammar over the wrong characters must not count as a valid
+    generation -- realistic timings for 'aaaa' are not a transcription of
+    the target."""
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from run_eval import transcription_generation_ok
+
+    from typeshi.events import Event
+
+    target = "hello world"
+    good = [Event.key(c, i * 100, i * 100 + 50) for i, c in enumerate(target)]
+    garbage = [Event.key("a", i * 100, i * 100 + 50) for i in range(len(target))]
+    with_cursor = good[:-1] + [Event.cursor(0, 99999)]
+    assert transcription_generation_ok(good, target)
+    assert not transcription_generation_ok(garbage, target)
+    assert not transcription_generation_ok(with_cursor, target)
+    assert not transcription_generation_ok([], target)
+
+
+def test_split_loader_rejects_overlapping_writer_sets(tmp_path):
+    import json
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from run_eval import load_test_writers
+
+    path = tmp_path / "split.json"
+    path.write_text(json.dumps({
+        "train_writers": ["aalto:1", "aalto:2"],
+        "test_writers": ["aalto:2", "aalto:3"],
+    }))
+    with pytest.raises(SystemExit):
+        load_test_writers(path, allow_unsplit=False)

@@ -46,7 +46,9 @@ def test_peft_config_targets_attention_projections():
     "cuda,bf16,mps,expect_dtype,expect_bf16",
     [
         (True, True, False, "bfloat16", True),    # the intended GPU target
-        (True, False, False, "float16", False),   # older CUDA card
+        # Older CUDA cards fall back to fp32, NOT fp16: loading fp16 weights
+        # without a GradScaler is unscaled full-fp16 training, which diverges.
+        (True, False, False, "float32", False),
         (False, False, True, "float32", False),   # Apple Silicon
         (False, False, False, "float32", False),  # plain CPU
     ],
@@ -68,6 +70,26 @@ def test_bfloat16_is_never_paired_with_device_map_off_cuda():
     for cuda, bf16, mps in [(False, False, True), (False, True, True), (False, False, False)]:
         got = select_backend(has_cuda=cuda, has_bf16=bf16, has_mps=mps)
         assert not (got["dtype"] == "bfloat16" and got["device_map"] == "auto")
+
+
+def test_half_precision_is_never_emitted_without_mixed_precision():
+    """Half-precision weights with bf16=False and no fp16 flag mean training
+    with no loss scaling at all. No backend combination may produce that."""
+    from typeshi.train_motor import select_backend
+
+    for cuda in (True, False):
+        for bf16 in (True, False):
+            for mps in (True, False):
+                got = select_backend(has_cuda=cuda, has_bf16=bf16, has_mps=mps)
+                if got["dtype"] in ("float16", "bfloat16"):
+                    assert got["bf16"], f"unscaled half precision from {cuda,bf16,mps}"
+
+
+def test_tied_models_get_weight_tying_preserved():
+    cfg = build_peft_config(train_embeddings=True, tied_embeddings=True)
+    assert cfg.ensure_weight_tying
+    cfg = build_peft_config(train_embeddings=True, tied_embeddings=False)
+    assert not cfg.ensure_weight_tying
 
 
 def test_embedding_modules_avoid_naming_a_tied_tensor_twice():

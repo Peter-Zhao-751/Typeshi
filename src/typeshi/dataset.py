@@ -8,7 +8,14 @@ from typing import Iterable
 from typeshi.buffer import TextBuffer
 from typeshi.events import Event
 from typeshi.labels import SessionLabels
-from typeshi.serialize import serialize
+from typeshi.serialize import MARKERS, serialize
+
+# Continuation prompts embed the buffer text; a full essay can push the prompt
+# past the trainer's max_length, which truncates the COMPLETION and can drop
+# the example outright (10 of 4,680 sample windows had prompts over 2,048
+# tokens). Resuming needs local context around the caret, not the whole
+# document, so only the tail is kept.
+WRITTEN_TAIL_CHARS = 500
 
 def build_prompt(
     target_text: str,
@@ -24,10 +31,16 @@ def build_prompt(
     earns its keep. There is no instruction boilerplate: it was 10 constant
     tokens in every one of 2M examples and carried no information.
     """
+    for marker in MARKERS:
+        # Raw corpus text containing a literal marker would be indistinguishable
+        # from prompt structure. Refuse; callers drop the session.
+        if marker in target_text or marker in written_so_far:
+            raise ValueError(f"text contains the prompt marker {marker!r}")
     state = ""
     if cursor is not None:
         # Resume state: what stands in the buffer, and where the caret sits.
-        state = f"<WRITTEN>{written_so_far}<CUR:{cursor}>"
+        tail = written_so_far[-WRITTEN_TAIL_CHARS:]
+        state = f"<WRITTEN>{tail}<CUR:{cursor}>"
     return f"{labels.to_tokens(mode)}<TARGET>{target_text}{state}<PROCESS>"
 
 

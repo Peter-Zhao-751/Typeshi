@@ -16,7 +16,9 @@ from typing import Iterator
 
 import polars as pl
 
+from typeshi.buffer import replay
 from typeshi.events import Event, rebase
+from typeshi.labels import _levenshtein
 
 # Canonical name -> real column. Verified against the corpus readme and header.
 AALTO_COLUMNS = {
@@ -31,6 +33,14 @@ AALTO_COLUMNS = {
 }
 
 _BACKSPACE_MARKERS = {"BKSP", "BACKSPACE", "\x08"}
+
+# Minimum edit-distance similarity between replayed events and the USER_INPUT
+# the participant actually submitted. The corpus contains sessions whose log
+# rows disagree badly with their own submitted text (lossy decoding, ragged
+# lines, clock glitches): measured 52 of 2,745 below 0.90, worst 0.176.
+# Those entered training silently; now they are dropped like every other
+# integrity failure.
+REPLAY_SIMILARITY_MIN = 0.90
 
 # Physical keyboards only; 'small' and 'on-screen' are mobile and out of scope.
 PHYSICAL_KEYBOARDS = {"full", "laptop"}
@@ -127,6 +137,14 @@ def iter_sessions(path: Path) -> Iterator[tuple[str, str, list[Event]]]:
                 continue
             events = parse_session(group)
             if not events:
+                continue
+            submitted = group[c["user_input"]][0]
+            if submitted is None:
+                continue  # nothing to verify against -> cannot trust the rows
+            produced = replay(events)
+            submitted = str(submitted)
+            similarity = 1 - _levenshtein(produced, submitted) / max(len(submitted), 1)
+            if similarity < REPLAY_SIMILARITY_MIN:
                 continue
             participant = str(group[c["participant"]][0])
             target = str(group[c["target"]][0])

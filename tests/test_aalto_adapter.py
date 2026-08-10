@@ -116,3 +116,23 @@ def test_sessions_with_unlogged_letters_are_dropped(tmp_path):
     before = len(list(iter_sessions(FIXTURE)))
     after = len(list(iter_sessions(path)))
     assert after == before - 1
+
+
+def test_sessions_disagreeing_with_user_input_are_dropped(tmp_path):
+    """52 of 2,745 corpus sessions replay below 0.90 similarity to the text
+    the participant actually submitted (worst 0.176). They used to enter
+    training silently; integrity failures are dropped."""
+    rows = read_log(FIXTURE)
+    first = rows[AALTO_COLUMNS["session"]][0]
+    # Claim the participant submitted something the keystrokes cannot produce.
+    damaged = rows.with_columns(
+        pl.when(pl.col(AALTO_COLUMNS["session"]).eq(first))
+        .then(pl.lit("zzz completely unrelated text zzz"))
+        .otherwise(pl.col(AALTO_COLUMNS["user_input"]))
+        .alias(AALTO_COLUMNS["user_input"])
+    )
+    path = tmp_path / "damaged.txt"
+    damaged.write_csv(path, separator="\t")
+    before = len(list(iter_sessions(FIXTURE)))
+    after = len(list(iter_sessions(path)))
+    assert after == before - 1

@@ -87,6 +87,12 @@ At Qwen2.5-7B's hidden size that is ~92M new embedding parameters (both
 matrices) — 8% of the base vocabulary. Combinations that never occur in
 typing simply never appear in training; no fallback scheme is needed.
 
+Characters outside the 97 identities (Cyrillic, U+FFFD from lossy decoding,
+curly quotes) have no token at all: `unsupported_chars()` flags them and the
+dataset build drops those sessions (English-only scope; 0.13% of examples).
+Corpus text containing a literal prompt marker is likewise refused by
+`build_prompt` and the session dropped.
+
 ## Measured, v1 → v2 (extended tokenizer, real transcription examples)
 
 | | v1 | v2 |

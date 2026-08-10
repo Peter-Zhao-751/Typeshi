@@ -32,7 +32,7 @@ KLICKE_COLUMNS = {
     "key": "DownEvent",
 }
 
-_INSERT = {"input", "paste"}
+_INSERT = {"input"}
 _DELETE = {"remove/cut"}
 _REPLACE = "replace"
 _MOVE_RE = re.compile(r"Move From \[(\d+),\s*(\d+)\] To \[(\d+),\s*(\d+)\]")
@@ -41,6 +41,17 @@ _UNESCAPE = ((r"\n", "\n"), (r"\"", '"'), (r"\\", "\\"))
 
 class UnreplayableSession(Exception):
     """The log's positions are self-inconsistent, so it cannot be replayed."""
+
+
+class UnsupportedSession(UnreplayableSession):
+    """The session contains operations the motor model must not learn from.
+
+    Paste and drag-drop expand into runs of KEY events sharing one timestamp
+    -- measured 142 paste rows becoming 15,031 zero-IKI "keystrokes" in 500
+    logs. Training on those teaches instant multi-character typing, which is
+    exactly the failure mode the model exists to avoid. 13.8% of WritingTask
+    sessions contain a paste; they are dropped, not patched.
+    """
 
 
 def _unescape(value: object) -> str:
@@ -88,6 +99,18 @@ def parse_session(rows: pl.DataFrame) -> tuple[str, list[Event]]:
 
     buf = TextBuffer()
     events: list[Event] = []
+    # Navigation rows (arrows, clicks) carry no text change but DO carry the
+    # moment the caret actually moved. Without this, a cursor jump at second 1
+    # followed by typing at second 10 was stamped at second 10, relocating the
+    # nine-second pause to the wrong side of the move -- 85,970 such rows in
+    # the first 500 logs. Remember the last navigated position and use its
+    # own timestamp when the next edit confirms it.
+    nav: tuple[int, int] | None = None
+
+    def seek_time(target_pos: int, edit_press: int) -> int:
+        if nav is not None and nav[0] == target_pos:
+            return nav[1]
+        return edit_press
 
     for row in rows.iter_rows(named=True):
         activity, pos = row[c["event_type"]], row[c["cursor_pos"]]
@@ -101,9 +124,18 @@ def parse_session(rows: pl.DataFrame) -> tuple[str, list[Event]]:
         change = _unescape(row[c["char"]])
         pos = int(pos)
 
+        if kind == "nonproduction":
+            if pos != buf.cursor and 0 <= pos <= len(buf.text):
+                nav = (pos, press)
+            continue
+
+        if kind == "paste" or kind.startswith("move"):
+            raise UnsupportedSession(f"session contains {kind!r}")
+
         if kind in _INSERT:
             # CursorPosition is post-edit, so the text went in len(change) earlier.
-            _seek(events, buf, pos - len(change), press)
+            target = pos - len(change)
+            _seek(events, buf, target, seek_time(target, press))
             for ch in change:
                 _emit(events, buf, Event.key(ch, press, release))
 
@@ -116,10 +148,10 @@ def parse_session(rows: pl.DataFrame) -> tuple[str, list[Event]]:
             if pos + n > len(buf.text):
                 raise UnreplayableSession(f"delete {pos}+{n} past {len(buf.text)}")
             if n == 1:
-                _seek(events, buf, pos + 1, press)
+                _seek(events, buf, pos + 1, seek_time(pos + 1, press))
                 _emit(events, buf, Event.backspace(press, release))
             else:
-                _seek(events, buf, pos, press)
+                _seek(events, buf, pos, seek_time(pos, press))
                 _emit(events, buf, Event.seldel(pos, pos + n, press))
 
         elif kind == _REPLACE:
@@ -132,30 +164,14 @@ def parse_session(rows: pl.DataFrame) -> tuple[str, list[Event]]:
             if start < 0 or start + len(old) > len(buf.text):
                 raise UnreplayableSession("Replace span outside buffer")
             if old:
-                _seek(events, buf, start, press)
+                _seek(events, buf, start, seek_time(start, press))
                 _emit(events, buf, Event.seldel(start, start + len(old), press))
             _seek(events, buf, start, press)
             for ch in new:
                 _emit(events, buf, Event.key(ch, press, release))
 
-        elif kind.startswith("move"):
-            # Drag-and-drop: the ranges live in the Activity string itself.
-            match = _MOVE_RE.search(str(activity))
-            if not match:
-                raise UnreplayableSession(f"unparsed move {activity!r}")
-            src_start, src_end, dst_start, _ = (int(g) for g in match.groups())
-            if not 0 <= src_start < src_end <= len(buf.text):
-                raise UnreplayableSession("move source outside buffer")
-            segment = buf.text[src_start:src_end]
-            _seek(events, buf, src_start, press)
-            _emit(events, buf, Event.seldel(src_start, src_end, press))
-            target = dst_start - len(segment) if dst_start > src_start else dst_start
-            _seek(events, buf, max(min(target, len(buf.text)), 0), press)
-            for ch in segment:
-                _emit(events, buf, Event.key(ch, press, release))
 
-        # Nonproduction rows (modifiers, arrows, clicks) carry no text effect.
-        # Their caret position is folded into the next edit's _seek.
+        nav = None
 
     return buf.text, rebase(events)
 

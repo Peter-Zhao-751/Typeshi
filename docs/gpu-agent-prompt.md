@@ -69,16 +69,22 @@ language. TRL masks the prompt from the loss — only the event stream trains.
 
 ## The Tier-1 gates
 
-From `eval_report.json`:
+From `eval_report.json` — ALL five must hold (`tier1_met`):
 
-- `pass_discriminator_has_teeth`: accuracy **≥ 0.90** separating real sessions
-  from the naive heuristic baseline. This proves the discriminator works at
-  all. It scored 1.00 on real Aalto data locally, so if it drops, suspect the
-  eval before celebrating.
-- `pass_model`: accuracy **≤ 0.55** separating real sessions from our
-  generations. This is the actual goal — the discriminator *should* fail here.
-- `discriminator_accuracy_real_vs_real_control`: should sit near chance. If it
-  is high, the writer population is separable and `pass_model` is inflated.
+- `pass_discriminator_has_teeth`: **≥ 0.90** vs the naive heuristic baseline.
+  Scored 1.00 on real Aalto data locally; if it drops, suspect the eval.
+- `pass_serial_dependence_teeth`: **≥ 0.75** vs timing-shuffled real sessions.
+- `pass_model`: paired grouped-CV accuracy in **[0.40, 0.55]**. Below 0.40 is
+  leakage, never realism — unpaired CV scored 0.085 on EXACT COPIES, which is
+  why `train_discriminator(paired=True)` exists. Never score paired data with
+  unpaired folds.
+- `pass_generation_validity`: **≥ 90%** of generation attempts parse and
+  actually type the target. A model judged only on its rare successes is not
+  being judged.
+- `pass_control_near_chance`: real-vs-real in [0.40, 0.60].
+
+Also compare `discriminator_accuracy_vs_model_timing_only` against the full
+number: a big gap means length is doing the separating, not timing.
 
 ## Things that will bite you if you do not know them
 
@@ -96,9 +102,12 @@ From `eval_report.json`:
   by concatenating events. Every session is rebased to zero, so a flat
   concatenation invents a large negative inter-key interval at each boundary
   and makes the Fréchet distance NaN.
-- **Sessions that fail exact replay are dropped, never patched.** ~4% of
-  KLiCKe has cursor positions corrupted by key rollover. Exact replay is the
-  correctness gate; do not relax it to raise yield.
+- **Sessions that fail integrity checks are dropped, never patched.** KLiCKe:
+  rollover-corrupted cursor positions (~4%) and paste/drag sessions (13.8% —
+  a paste becomes zero-IKI "keystrokes" that poison motor timing). Aalto:
+  sessions replaying under 0.90 similarity to USER_INPUT, and sessions with
+  characters outside the 97-identity English vocabulary. Do not relax any of
+  these to raise yield.
 - **`generate()` can emit text outside the grammar**, which raises
   `ValueError`. `run_eval.py` counts these as
   `generations_rejected_as_malformed`. A high count is a real finding about

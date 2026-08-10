@@ -96,6 +96,23 @@ def special_tokens() -> list[str]:
     return toks
 
 
+def unsupported_chars(events: list[Event]) -> set[str]:
+    """Characters in KEY events that have no registered <c:h> token.
+
+    Only 97 printable-ASCII identities are in the vocabulary. Anything else
+    (Cyrillic from multilingual Aalto participants, U+FFFD from KLiCKe's lossy
+    decoding, curly quotes) would serialize into a syntactically valid but
+    UNREGISTERED token that the tokenizer shatters into BPE pieces -- and it
+    violates the plan's English-only scope. Sessions containing any are
+    dropped at dataset build; measured 6 of 4,680 sample examples (0.13%).
+    """
+    supported = set(_DIRECT_CHARS) | set(_ESCAPES)
+    return {
+        e.char for e in events
+        if e.type is EventType.KEY and e.char not in supported
+    }
+
+
 def serialize(events: list[Event], prev_press_time: int | None = None) -> str:
     """Events -> token stream.
 
