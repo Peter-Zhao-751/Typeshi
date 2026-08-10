@@ -53,3 +53,46 @@ All five gates failed; `tier1_met: false`. This is the honest expected result.
   per-mode failure counts. Three eval-runner bugs were found and fixed during
   this shakedown (unbounded generation budget, unbounded attempt sweep,
   no-report-on-zero-valid) — which is what shakedowns are for.
+
+---
+
+# Overnight Run — Corrected Results (2026-08-10)
+
+Qwen3.5-0.8B, 3 epochs × 17,714 examples (1,204 writers), 6h17m on MPS.
+Loss 5.49 → 2.73 (most of the gain inside epoch 1: data, not repetition —
+epochs 2–3 only moved 2.91 → 2.73). Token accuracy 16.8%.
+
+## The sampler discovery
+
+The morning eval's impossible "malformed under the mask" counts led to
+catching **torch.multinomial on MPS emitting a token whose logit was a
+verified -inf** (~1 violation per 250 steps). Every previous eval number was
+corrupted by this: the off-vocabulary text attributed to "probability mass"
+in the first shakedown was this kernel bug all along. Sampling is now
+Gumbel-argmax (distributionally identical, argmax-only, device-independent,
+seeded on CPU) — parse rate went 27% → 12/12 on the same checkpoint.
+
+## Eval with the trustworthy sampler (17 valid pairs — small-N caveats apply)
+
+| gate | value | verdict |
+|---|---|---|
+| teeth vs naive baseline | 0.97 | ✅ |
+| control (real vs real) | 0.47 | ✅ |
+| serial-dependence teeth | 0.54 | ❌ (needs 0.75; n=17 limits the discriminator itself) |
+| model vs real | 0.77 | ❌ (needs ≤0.55 — timing is genuinely distinguishable) |
+| generation validity | **14.2%** (17/120, **0 malformed**, 103 wrong-text) | ❌ (needs 90%) |
+
+## The data-scaling curve so far
+
+| training data | valid generations |
+|---|---|
+| 3.8k examples, 1 epoch | 0/120 |
+| 17.7k examples, 3 epochs | **17/120 (14.2%)** |
+
+Grammar is solved by construction (constrained decoding: zero malformed).
+The binding constraint is now **target fidelity** — generations type related
+but imperfect text ("imablance" transpositions, dropped words). That is a
+data-volume skill; the full corpus is 112× the overnight set. Timing realism
+(0.77 discriminator) is the second gap and also expected to improve with
+data; if it does not, the levers are temperature and longer training before
+recipe changes.
