@@ -135,7 +135,15 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+        # The superset covers plain attention (Qwen2.5/Llama: q/k/v/o_proj)
+        # AND hybrid linear-attention blocks (Qwen3.5: a fused in_proj_qkv
+        # plus out_proj). peft matches by suffix and ignores names an
+        # architecture lacks; without the extra two, 18 of Qwen3.5-0.8B's 24
+        # layers received no adapter at all.
+        target_modules=[
+            "q_proj", "k_proj", "v_proj", "o_proj",
+            "in_proj_qkv", "out_proj",
+        ],
         modules_to_save=(
             embedding_modules_to_save(tied_embeddings) if train_embeddings else None
         ),
