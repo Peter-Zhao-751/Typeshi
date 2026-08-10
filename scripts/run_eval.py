@@ -144,11 +144,24 @@ def main() -> None:
     ap.add_argument("--temperature", type=float, default=1.0)
     args = ap.parse_args()
 
+    import torch
     from peft import AutoPeftModelForCausalLM
     from transformers import AutoTokenizer
 
+    from typeshi.train_motor import _detect_backend
+
+    # Same placement rules as training: device_map="auto" on MPS aborts for
+    # hybrid-attention architectures, so load on CPU there and move after.
+    backend = _detect_backend()
     tok = AutoTokenizer.from_pretrained(args.checkpoint)
-    model = AutoPeftModelForCausalLM.from_pretrained(args.checkpoint, device_map="auto")
+    model = AutoPeftModelForCausalLM.from_pretrained(
+        args.checkpoint,
+        dtype=getattr(torch, backend["dtype"]),
+        device_map=backend["device_map"],
+    )
+    if backend["device_map"] is None and torch.backends.mps.is_available():
+        model = model.to("mps")
+    model.eval()
 
     split_path = resolve_split_path(args.checkpoint, args.split)
     test_writers = load_test_writers(split_path, args.allow_unsplit)
