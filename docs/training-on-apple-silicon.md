@@ -1,5 +1,12 @@
 # Training on Apple Silicon
 
+> **Note:** the measurements in this file were taken under the v1 token
+> format (3 tokens/keystroke, 356 special tokens). Format v2
+> (`docs/token-format.md`) cuts sequences a further ~35%, so treat the
+> throughput and wall-clock figures here as upper bounds. The MLX model
+> under `models/` must be rebuilt with `scripts/prepare_mlx_model.py`
+> before it matches the v2 grammar.
+
 Measured on an **M5 Pro, 15 cores, 48 GB unified memory**, torch 2.13,
 transformers 5.14, Python 3.14.
 
@@ -158,22 +165,20 @@ python -m mlx_lm fuse \
   --save-path checkpoints/motor-fused
 ```
 
-Also note MLX has no equivalent of the tokenizer surgery in
-`prepare_tokenizer()`. The event grammar's ~380 special tokens
-(`<DT:k>`, `<KEY:c>`, `<HOLD:k>`) are added to the HF tokenizer and the
-embedding matrix is resized to match. Reproducing that under MLX is unsolved
-here — without it, every event token fragments into several BPE pieces, which
-inflates sequence length several-fold and weakens the timing signal the model
-is supposed to learn.
+The tokenizer surgery itself is solved by `scripts/prepare_mlx_model.py`
+(extend, seed, resize, convert) — under format v2 it registers 12,810 tokens.
+Rebuild the local MLX model after any grammar change, or every event token
+fragments into BPE pieces again.
 
 ## Base model access
 
-`config.BASE_MODEL` is `meta-llama/Meta-Llama-3.1-8B-Instruct`, which is
-gated (`gated=manual`). Access is granted on this machine's HF token. Ungated
-alternatives that need no approval:
+`config.BASE_MODEL` is `Qwen/Qwen2.5-7B-Instruct` (ungated). The gated
+`meta-llama/Meta-Llama-3.1-8B-Instruct` returns 403 on weight download from
+this machine — its metadata reads fine, which is misleading. Ungated
+alternatives:
 
-- `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` (MLX, 4-bit)
-- `Qwen/Qwen2.5-7B-Instruct` (the plan allows Llama *or* Qwen)
+- `Qwen/Qwen2.5-7B-Instruct` (the plan allows Llama *or* Qwen; the default)
+- `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` (MLX, 4-bit, stock tokenizer)
 
 ## Recommendation
 

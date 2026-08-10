@@ -10,15 +10,6 @@ from typeshi.events import Event
 from typeshi.labels import SessionLabels
 from typeshi.serialize import serialize
 
-_PROMPT = (
-    "Simulate the writing process for the target text.\n"
-    "{header}\n"
-    "TARGET: {target}\n"
-    "{state}"
-    "PROCESS:"
-)
-
-
 def build_prompt(
     target_text: str,
     labels: SessionLabels,
@@ -26,12 +17,18 @@ def build_prompt(
     written_so_far: str = "",
     cursor: int | None = None,
 ) -> str:
-    """The prompt format shared by training export and inference."""
+    """The prompt format shared by training export and inference (v2).
+
+    Knobs and markers are single registered tokens; the target text stays
+    natural language, which is the one place the base model's pretraining
+    earns its keep. There is no instruction boilerplate: it was 10 constant
+    tokens in every one of 2M examples and carried no information.
+    """
     state = ""
     if cursor is not None:
-        # Resume state: how far along the writer is, and where the caret sits.
-        state = f"WRITTEN_SO_FAR: {written_so_far}\nCURSOR={cursor}\n"
-    return _PROMPT.format(header=labels.to_header(mode), target=target_text, state=state)
+        # Resume state: what stands in the buffer, and where the caret sits.
+        state = f"<WRITTEN>{written_so_far}<CUR:{cursor}>"
+    return f"{labels.to_tokens(mode)}<TARGET>{target_text}{state}<PROCESS>"
 
 
 def build_examples(
@@ -44,10 +41,14 @@ def build_examples(
     """Cuts a session into windows of at most `max_events`.
 
     Long essays exceed the context window, so each continuation window carries
-    the buffer state as it stood when that window began.
+    the buffer state as it stood when that window began, and its completion
+    opens with the <DT:k> spanning the window boundary -- serializing windows
+    independently would silently zero that gap, which in composition can be a
+    minutes-long thinking pause.
     """
     examples: list[dict] = []
     buf = TextBuffer()
+    prev_press: int | None = None
 
     for start in range(0, len(events), max_events):
         window = events[start : start + max_events]
@@ -56,7 +57,9 @@ def build_examples(
             if start == 0
             else build_prompt(target_text, labels, mode, buf.text, buf.cursor)
         )
-        examples.append({"prompt": prompt, "completion": serialize(window)})
+        completion = serialize(window, prev_press_time=prev_press)
+        examples.append({"prompt": prompt, "completion": completion})
+        prev_press = window[-1].press_time
         for e in window:
             buf.apply(e)
     return examples

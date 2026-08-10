@@ -60,7 +60,7 @@ def initialize_new_token_embeddings(model, base_model: str) -> int:
     `resize_token_embeddings` draws new rows from a distribution fitted to the
     old ones, which is random noise as far as meaning goes. That throws away
     the structure the grammar depends on: <DT:50> and <DT:51> are adjacent time
-    bins and should start close together, and every <KEY:x> should start near
+    bins and should start close together, and every <x:h> should start near
     the ordinary character x.
 
     Averaging the base tokenizer's pieces for each token recovers exactly that
@@ -112,7 +112,7 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
 
     `train_embeddings` adds the embedding matrix and output head to the
     trainable set. It defaults on because the event tokens are new: without it
-    every <DT:k>/<KEY:c>/<HOLD:k> keeps whatever vector resizing happened to
+    every <c:h>/<DT:k> keeps whatever vector resizing happened to
     give it, and the output head can never learn to emit them properly. LoRA on
     the attention projections alone cannot compensate -- it never touches the
     embedding table.
@@ -152,7 +152,8 @@ def main() -> None:
     ap.add_argument("--accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--mode", default="transcription",
-                    help="filter examples by MODE= in the prompt")
+                    choices=["transcription", "composition"],
+                    help="train only on examples whose prompt carries this mode token")
     ap.add_argument("--seed", type=int, default=config.DEFAULT_SEED)
     ap.add_argument(
         "--freeze-embeddings",
@@ -183,14 +184,17 @@ def main() -> None:
     )
     model.print_trainable_parameters()
 
+    mode_marker = {"transcription": "<MODE:T>", "composition": "<MODE:C>"}[args.mode]
     ds = load_dataset("json", data_files=str(args.data), split="train")
-    ds = ds.filter(lambda r: f"MODE={args.mode}" in r["prompt"])
+    ds = ds.filter(lambda r: mode_marker in r["prompt"])
     if len(ds) == 0:
         raise SystemExit(
-            f"no examples with MODE={args.mode} in {args.data}; "
+            f"no examples with {mode_marker} in {args.data}; "
             "run scripts/build_dataset.py first"
         )
-    ds = ds.map(lambda r: {"text": r["prompt"] + r["completion"] + tok.eos_token})
+    # The dataset keeps its prompt/completion columns: TRL then masks the
+    # prompt from the loss. Collapsing to one text field (as v1 did) trains
+    # the model to predict its own prompt -- measured at ~27% of the signal.
 
     trainer = SFTTrainer(
         model=model,
@@ -207,7 +211,6 @@ def main() -> None:
             save_strategy="epoch",
             seed=args.seed,
             max_length=2048,
-            dataset_text_field="text",
         ),
     )
     trainer.train()

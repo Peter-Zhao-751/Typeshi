@@ -10,18 +10,19 @@ is the fine-tune itself, which does not fit on a Mac (see
 The run needs one GPU with **at least 48 GB**, and 80 GB is comfortable.
 Multi-GPU buys nothing here — do not complicate the setup with it.
 
-Memory budget for Qwen2.5-7B with the extended 152,019-token vocabulary:
+Memory budget for Qwen2.5-7B with the extended 164,874-token vocabulary
+(152,064 base + 12,810 event/knob tokens, format v2):
 
 | Component | Size |
 |---|---|
-| Base weights, bf16 | 15.2 GB |
-| Gradients for trainable params, bf16 | 2.3 GB |
-| AdamW moments, fp32 | 9.0 GB |
-| fp32 master copy | 4.5 GB |
-| **Subtotal** | **31.0 GB** + activations |
+| Base weights, bf16 | 15.4 GB |
+| Gradients for trainable params, bf16 | 2.4 GB |
+| AdamW moments, fp32 | 9.8 GB |
+| fp32 master copy | 4.9 GB |
+| **Subtotal** | **32.5 GB** + activations |
 
-The 1.13B trainable parameters are mostly `embed_tokens` and `lm_head`
-(545M each), which are trained because the 356 event tokens are new — see
+The ~1.2B trainable parameters are mostly `embed_tokens` and `lm_head`
+(591M each), which are trained because the 12,810 event tokens are new — see
 "Why the embeddings are trainable" below.
 
 | Instance | Verdict |
@@ -80,7 +81,7 @@ python -m typeshi.train_motor --mode transcription \
 ```
 
 Confirm the log shows `backend: {'dtype': 'bfloat16', ... 'bf16': True}`,
-`seeded 354 event-token embeddings`, and a loss that moves. Then:
+`seeded 12810 event-token embeddings`, and a loss that moves. Then:
 
 ```bash
 python -m typeshi.train_motor --mode transcription --out checkpoints/motor \
@@ -88,7 +89,7 @@ python -m typeshi.train_motor --mode transcription --out checkpoints/motor \
 ```
 
 **Consider a subset first.** The transcription split is 1,989,167 examples of
-roughly 190–240 tokens each — around 400M tokens per epoch. Phase 1 only has
+~108 tokens each (format v2) — around 215M tokens per epoch. Phase 1 only has
 to learn motor timing, and that likely saturates well before a full pass.
 Rebuild with `--limit-aalto 20000` for a ~230k-example run, check the eval,
 and scale up only if the numbers demand it.
@@ -130,11 +131,11 @@ The adapter is small; the resized embedding table is not, so expect a few GB.
 `build_peft_config()` sets `modules_to_save=["embed_tokens", "lm_head"]`. This
 is deliberate and costs ~13 GB of the memory budget above.
 
-The event grammar adds 356 tokens no base vocabulary has seen. Two problems
+The event grammar adds 12,810 tokens no base vocabulary has seen. Two problems
 follow from resizing alone:
 
 1. **LoRA never touches the embedding table.** With only `q/k/v/o_proj`
-   adapted, every `<DT:k>`, `<KEY:c>`, and `<HOLD:k>` would keep its initial
+   adapted, every `<c:h>` and `<DT:k>` would keep its initial
    vector for the whole run, and `lm_head` could never learn to emit them —
    even though they are the entire output vocabulary.
 2. **Resizing makes them indistinguishable.** `resize_token_embeddings` draws

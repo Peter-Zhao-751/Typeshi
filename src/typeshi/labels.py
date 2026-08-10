@@ -28,13 +28,22 @@ class SessionLabels:
     uncorrected_error_rate: float
     revision_rate: float
 
-    def to_header(self, mode: str) -> str:
+    def to_tokens(self, mode: str) -> str:
+        """Condition knobs as single registered tokens (format v2).
+
+        The v1 text header ("MODE=transcription WPM=92 ERR_COR=2.3% ...")
+        shredded into 28 base-tokenizer pieces for five numbers; these five
+        tokens carry the same conditioning signal.
+        """
+        from typeshi.serialize import pct_bin, wpm_bin
+
+        m = "T" if mode == "transcription" else "C"
         return (
-            f"MODE={mode} "
-            f"WPM={self.wpm:.0f} "
-            f"ERR_COR={self.corrected_error_rate * 100:.1f}% "
-            f"ERR_UNC={self.uncorrected_error_rate * 100:.1f}% "
-            f"REV={self.revision_rate * 100:.0f}%"
+            f"<MODE:{m}>"
+            f"<WPM:{wpm_bin(self.wpm)}>"
+            f"<ECOR:{pct_bin(self.corrected_error_rate)}>"
+            f"<EUNC:{pct_bin(self.uncorrected_error_rate)}>"
+            f"<REV:{pct_bin(self.revision_rate)}>"
         )
 
 

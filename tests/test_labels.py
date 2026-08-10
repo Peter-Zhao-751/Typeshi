@@ -42,15 +42,21 @@ def test_revision_rate_counts_cursor_and_seldel():
     assert labels.revision_rate == pytest.approx(2 / 7, rel=0.01)
 
 
-def test_header_is_stable_and_contains_all_knobs():
+def test_knob_tokens_are_stable_and_cover_all_knobs():
     labels = SessionLabels(wpm=61.4, corrected_error_rate=0.031,
                            uncorrected_error_rate=0.004, revision_rate=0.12)
-    header = labels.to_header(mode="transcription")
-    assert "MODE=transcription" in header
-    assert "WPM=61" in header
-    assert "ERR_COR=3.1%" in header
-    assert "ERR_UNC=0.4%" in header
-    assert "REV=12%" in header
+    assert labels.to_tokens("transcription") == (
+        "<MODE:T><WPM:12><ECOR:3><EUNC:0><REV:12>"
+    )
+    assert labels.to_tokens("composition").startswith("<MODE:C>")
+
+
+def test_extreme_knob_values_clamp_instead_of_overflowing():
+    labels = SessionLabels(wpm=9999, corrected_error_rate=1.0,
+                           uncorrected_error_rate=1.0, revision_rate=1.0)
+    assert labels.to_tokens("transcription") == (
+        "<MODE:T><WPM:39><ECOR:30><EUNC:30><REV:30>"
+    )
 
 
 def test_empty_session_does_not_divide_by_zero():

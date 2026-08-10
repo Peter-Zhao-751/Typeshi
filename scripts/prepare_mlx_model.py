@@ -80,12 +80,13 @@ def verify(dest: Path) -> None:
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(dest)
-    probes = ["<DT:0>", "<DT:127>", "<KEY:a>", "<KEY:SPC>", "<HOLD:64>", "<BKSP>"]
+    probes = ["<DT:0>", "<DT:127>", "<a:51>", "<SPC:17>", "<BKSP:5>",
+              "<MODE:T>", "<WPM:18>", "<TARGET>", "<PROCESS>"]
     bad = [p for p in probes if len(tok.tokenize(p)) != 1]
     if bad:
         raise SystemExit(f"FAILED: these did not survive as single tokens: {bad}")
 
-    sample = "<DT:0><KEY:W><HOLD:52><DT:56><KEY:a><HOLD:54>"
+    sample = "<H:51><DT:49><e:51><DT:50><SPC:51><DT:50>"
     pieces = tok.tokenize(sample)
     print(f"verified: {len(probes)} probe tokens are single tokens")
     print(f"  {sample}\n  -> {pieces}")

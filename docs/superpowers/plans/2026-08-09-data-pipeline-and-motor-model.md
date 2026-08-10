@@ -1,5 +1,11 @@
 # Typing Process Model — Data Pipeline & Motor Model Implementation Plan
 
+> **Format note (2026-08-09, post-completion):** the token grammar shown in the
+> code samples below is v1, which was redesigned after all 12 tasks completed
+> and before any training run. The implemented grammar is v2 — see
+> `docs/token-format.md`. The task structure and everything else here still
+> describes the codebase accurately.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the unified keystroke-event data pipeline and the Phase-1 motor LoRA fine-tune, reaching two milestones from the spec: byte-exact round-trip replay of real sessions, and Tier-1 (transcription) timing realism verified by distributional metrics and a learned discriminator.

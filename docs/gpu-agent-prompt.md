@@ -16,42 +16,51 @@ the Tier-1 milestone passes or you can explain precisely why it cannot.**
 ## Read these first
 
 1. `docs/gpu-handoff.md` — the runbook you are executing. Start here.
-2. `docs/superpowers/plans/2026-08-09-data-pipeline-and-motor-model.md` — the
+2. `docs/token-format.md` — the token grammar (format v2) and the
+   measurements behind every design decision. **The original plan documents
+   show the older v1 grammar; this file supersedes them.**
+3. `docs/superpowers/plans/2026-08-09-data-pipeline-and-motor-model.md` — the
    full implementation plan. Tasks 1–12 are all complete and committed;
    Task 10 step 4 (the training run) and Task 12 step 4 (scoring a real
    checkpoint) are what remain.
-3. `docs/data-schemas.md` — the real corpus schemas. The published papers and
+4. `docs/data-schemas.md` — the real corpus schemas. The published papers and
    the plan's guesses were both wrong about KLiCKe; this file is ground truth.
-4. `docs/training-on-apple-silicon.md` — why this moved to a GPU, and
+5. `docs/training-on-apple-silicon.md` — why this moved to a GPU, and
    measurements you may find useful for comparison.
 
 ## What the system does
 
 A keystroke session is a list of canonical `Event`s (`KEY`, `BACKSPACE`,
-`CURSOR`, `SELDEL`). Events serialize to a token grammar the model learns:
+`CURSOR`, `SELDEL`). Events serialize to a token grammar the model learns
+(format v2 — full spec in `docs/token-format.md`):
 
 ```
-<DT:12><KEY:h><HOLD:7><DT:9><KEY:i><HOLD:6><DT:44><BKSP><HOLD:5>
+<h:51><DT:49><e:51><DT:50><SPC:51><DT:44><BKSP:48>
 ```
 
-`DT` is press-to-press delta, `HOLD` is press-to-release, both quantized into
-128 log-spaced bins between 1 ms and 120 s. Log spacing gives millisecond
-resolution on fast keystrokes and second-scale resolution on thinking pauses.
-Rollover — a key pressed before the previous is released — shows up implicitly
-as `HOLD > DT`, which is why `DT` is never negative.
+One keystroke is two tokens: `<c:h>` (the key plus its hold-time bin) and
+`<DT:k>` (press-to-press gap to the next event). Holds and gaps share one
+128-bin log-spaced scale over 1 ms – 120 s, which is what makes rollover a
+plain comparison: `<X:y><DT:z>` with `y > z` means X was still held when the
+next key went down — true of 26% of real keystrokes.
 
-Training examples are `{"prompt", "completion"}` pairs. The prompt carries the
-target text plus condition knobs (`MODE`, `WPM`, `ERR_COR`, `ERR_UNC`, `REV`);
-the completion is the serialized event stream.
+Training examples are `{"prompt", "completion"}` pairs:
+
+```
+<MODE:T><WPM:11><ECOR:0><EUNC:5><REV:0><TARGET>the sentence here<PROCESS>
+```
+
+Knobs and markers are single registered tokens; the target text stays natural
+language. TRL masks the prompt from the loss — only the event stream trains.
 
 ## Your task, in order
 
 1. Run `bash scripts/setup_gpu.sh`. It provisions everything and ends with the
    test suite green and `data/processed/split.json` written.
 2. Smoke-test training (`--epochs 0.002`). Verify the log reports
-   `bf16': True`, `seeded 354 event-token embeddings`, and a falling loss.
+   `bf16': True`, `seeded 12810 event-token embeddings`, and a falling loss.
 3. Train. **Start with a subset** — rebuild with `--limit-aalto 20000` for
-   ~230k examples. A full epoch is ~400M tokens and Phase 1 only needs motor
+   ~230k examples. A full epoch is ~215M tokens and Phase 1 only needs motor
    timing, which likely saturates far earlier. Scale up only if eval demands.
 4. Run `scripts/run_eval.py` and read the report.
 5. Iterate toward the gates. If the model fails, the levers in plan order are:
@@ -79,7 +88,7 @@ From `eval_report.json`:
   deliberate. Holdout is by *writer*, never by session, and scoring realism on
   writers the model trained on would pass Tier-1 for the wrong reason. Do not
   reach for `--allow-unsplit` to make an error go away.
-- **`modules_to_save` is load-bearing.** The 356 event tokens are new; LoRA
+- **`modules_to_save` is load-bearing.** The 12,810 event tokens are new; LoRA
   alone never touches the embedding table, so without this they keep their
   initial vectors forever and `lm_head` can never learn to emit them. Only use
   `--freeze-embeddings` if you genuinely run out of memory, and report it.
@@ -98,7 +107,7 @@ From `eval_report.json`:
 ## How to work
 
 - Run `python -m pytest -q` before and after changes. It should stay green
-  (101 passed, 3–4 skipped). Network-dependent tests need
+  (116 passed, 3–4 skipped). Network-dependent tests need
   `TYPESHI_NETWORK_TESTS=1`.
 - Commit as you go, following the existing message style in `git log`.
 - Long runs: use `tee` to a file under `logs/` and check in periodically

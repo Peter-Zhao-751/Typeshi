@@ -15,14 +15,14 @@ needs_network = pytest.mark.network
 @needs_network
 def test_special_tokens_are_added_to_the_vocabulary():
     tok = prepare_tokenizer(TINY)
-    for t in ["<BKSP>", "<DT:0>", "<KEY:SPC>"]:
+    for t in ["<BKSP:0>", "<DT:0>", "<SPC:17>", "<MODE:T>", "<TARGET>"]:
         assert len(tok.tokenize(t)) == 1, f"{t} was split into multiple tokens"
 
 
 @needs_network
 def test_event_tokens_survive_encode_decode():
     tok = prepare_tokenizer(TINY)
-    s = "<DT:5><KEY:a><HOLD:3><BKSP>"
+    s = "<a:51><DT:49><e:51><DT:50><BKSP:5>"
     assert tok.decode(tok.encode(s), skip_special_tokens=False).replace(" ", "") == s
 
 
@@ -30,8 +30,8 @@ def test_event_tokens_survive_encode_decode():
 def test_vocabulary_grew_by_the_expected_amount():
     base = transformers.AutoTokenizer.from_pretrained(TINY)
     tok = prepare_tokenizer(TINY)
-    # 3 entries ("<CUR:", "<SELDEL:", "<BKSP>" is whole) are prefixes, not tokens
-    assert len(tok) >= len(base) + len(special_tokens()) - 3
+    # 2 entries ("<CUR:", "<SELDEL:") are prefixes, not whole tokens
+    assert len(tok) >= len(base) + len(special_tokens()) - 2
 
 
 def test_peft_config_targets_attention_projections():

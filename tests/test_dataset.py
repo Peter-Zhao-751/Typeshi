@@ -16,17 +16,25 @@ def test_short_session_becomes_one_example():
     assert set(ex[0]) == {"prompt", "completion"}
 
 
-def test_prompt_contains_target_text_and_knobs():
+def test_prompt_contains_target_text_and_knob_tokens():
     ex = build_examples("hello", _type("hello"), LABELS, mode="transcription")
-    assert "hello" in ex[0]["prompt"]
-    assert "WPM=60" in ex[0]["prompt"]
-    assert "MODE=transcription" in ex[0]["prompt"]
+    assert "<TARGET>hello" in ex[0]["prompt"]
+    assert "<WPM:12>" in ex[0]["prompt"]          # 60 wpm // 5
+    assert ex[0]["prompt"].startswith("<MODE:T>")
+    assert ex[0]["prompt"].endswith("<PROCESS>")
+
+
+def test_prompt_has_no_instruction_boilerplate():
+    """The v1 preamble was 10 constant tokens in 2M examples; it is gone."""
+    ex = build_examples("hello", _type("hello"), LABELS, mode="transcription")
+    assert "Simulate" not in ex[0]["prompt"]
 
 
 def test_completion_is_the_event_token_stream():
     ex = build_examples("hi", _type("hi"), LABELS, mode="transcription")
-    assert "<KEY:h>" in ex[0]["completion"]
+    assert "<h:" in ex[0]["completion"]
     assert "<DT:" in ex[0]["completion"]
+    assert not ex[0]["completion"].startswith("<DT:")
 
 
 def test_long_session_is_split_into_windows():
@@ -38,14 +46,14 @@ def test_long_session_is_split_into_windows():
 def test_continuation_windows_carry_resume_state():
     events = _type("a" * 1200)
     ex = build_examples("a" * 1200, events, LABELS, mode="composition", max_events=512)
-    assert "CURSOR=" in ex[1]["prompt"]
-    assert "CURSOR=" not in ex[0]["prompt"]
+    assert "<WRITTEN>" in ex[1]["prompt"] and "<CUR:512>" in ex[1]["prompt"]
+    assert "<WRITTEN>" not in ex[0]["prompt"]
 
 
 def test_windows_cover_every_event_exactly_once():
     events = _type("a" * 1000)
     ex = build_examples("a" * 1000, events, LABELS, mode="composition", max_events=512)
-    total_keys = sum(e["completion"].count("<KEY:") for e in ex)
+    total_keys = sum(e["completion"].count("<a:") for e in ex)
     assert total_keys == 1000
 
 
@@ -57,7 +65,19 @@ def test_resume_state_reflects_the_buffer_at_the_window_boundary():
         "abcdefghij" * 60, events, LABELS, mode="composition", max_events=512
     )
     assert len(ex) == 2
-    assert "CURSOR=512" in ex[1]["prompt"]
+    assert "<CUR:512>" in ex[1]["prompt"]
+
+
+def test_window_boundary_gap_is_preserved_not_zeroed():
+    """v1 serialized each window independently, so the gap between the last
+    event of one window and the first of the next was silently recorded as
+    zero -- in composition that can be a minutes-long pause."""
+    events = _type("a" * 600, gap=100)
+    ex = build_examples("a" * 600, events, LABELS, mode="composition", max_events=512)
+    assert ex[1]["completion"].startswith("<DT:")
+    from typeshi.serialize import deserialize
+    restored = deserialize(ex[1]["completion"])
+    assert abs(restored[0].press_time - 100) <= 15  # the real 100ms boundary gap
 
 
 def test_split_is_by_writer_and_deterministic():

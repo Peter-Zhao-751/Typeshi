@@ -1,7 +1,27 @@
 """Converts event streams to and from the token grammar the LLM emits.
 
-Grammar (one event): <DT:k> then the event token, plus <HOLD:k> for keys.
-DT is press-to-press so it is never negative; rollover shows up as HOLD > DT.
+Format v2 — full spec and the measurements behind it in docs/token-format.md.
+
+One keystroke is two tokens, and rollover reads straight off the stream:
+
+    <H:51><DT:49><e:51><DT:50><SPC:51>
+      |      |
+      |      press-to-press gap to the NEXT event
+      key + its hold time, on the SAME 128-bin scale
+
+    <X:y><DT:z> with y > z  ->  X was still held when the next key went down.
+
+Design decisions, each measured (see the doc):
+  - char and hold merge into one token: -32% sequence length for ~12.4k new
+    vocabulary entries, trivial next to a 152k base vocabulary.
+  - DT stays separate: merging it too would need ~1.5M entries (5.6B params).
+  - holds and gaps share one bin scale so their indices compare directly;
+    that is what keeps the rollover rule a plain integer comparison.
+  - no leading <DT:0>: it was byte-identical in 100% of 400k examples. A
+    continuation window MAY begin with <DT:k>, carrying the real gap across
+    the window boundary (pass prev_press_time to serialize()).
+  - condition knobs and prompt markers are single registered tokens; the v1
+    text header cost 28 base-tokenizer pieces for 5 numbers.
 """
 
 from __future__ import annotations
@@ -16,10 +36,27 @@ from typeshi.timebins import from_bin, to_bin
 _ESCAPES = {" ": "SPC", "\n": "NL", "\t": "TAB", "<": "LT", ">": "GT"}
 _UNESCAPES = {v: k for k, v in _ESCAPES.items()}
 
-# Printable ASCII minus the escaped ones; these are typed directly.
+# Printable ASCII minus the escaped ones; these appear literally in tokens.
 _DIRECT_CHARS = [c for c in string.printable[:95] if c not in _ESCAPES]
 
-_TOKEN_RE = re.compile(r"<(DT|HOLD|KEY|CUR|SELDEL|BKSP)(?::([^>]*))?>")
+# Condition-knob binning. WPM in 5-wpm buckets (max observed in the corpus is
+# 156, so 40 bins never clamp); error/revision knobs in whole percentage
+# points clamped at 30% -- anything above just means "extremely high".
+WPM_BIN_WIDTH = 5
+WPM_BINS = 40
+PCT_MAX = 30
+
+MARKERS = ("<TARGET>", "<WRITTEN>", "<PROCESS>")
+
+# Alternation order matters: named forms first, then the single-char form
+# (whose [^<>] would otherwise swallow the first letter of DT/CUR/...).
+_TOKEN_RE = re.compile(
+    r"<DT:(?P<dt>\d+)>"
+    r"|<CUR:(?P<cur>\d+)>"
+    r"|<SELDEL:(?P<sa>\d+)-(?P<sb>\d+)>"
+    r"|<BKSP:(?P<bh>\d+)>"
+    r"|<(?P<ch>SPC|NL|TAB|LT|GT|[^<>]):(?P<h>\d+)>"
+)
 
 
 def _encode_char(c: str) -> str:
@@ -30,39 +67,59 @@ def _decode_char(s: str) -> str:
     return _UNESCAPES.get(s, s)
 
 
+def wpm_bin(wpm: float) -> int:
+    return min(max(int(wpm // WPM_BIN_WIDTH), 0), WPM_BINS - 1)
+
+
+def pct_bin(rate: float) -> int:
+    """Rate in [0,1] -> whole percentage points, clamped at PCT_MAX."""
+    return min(max(int(round(rate * 100)), 0), PCT_MAX)
+
+
 def special_tokens() -> list[str]:
     """Every fixed token to register with the tokenizer.
 
-    CUR and SELDEL carry unbounded integers, so they are emitted as plain text
-    and parsed by regex rather than being single vocabulary entries.
+    CUR and SELDEL carry unbounded integers, so they are emitted as plain
+    text and parsed by regex rather than being single vocabulary entries;
+    only their prefixes appear here, and prepare_tokenizer skips them.
     """
-    toks = ["<BKSP>", "<CUR:", "<SELDEL:"]
+    toks = ["<CUR:", "<SELDEL:"]
     toks += [f"<DT:{k}>" for k in range(config.TIME_BINS)]
-    toks += [f"<HOLD:{k}>" for k in range(config.TIME_BINS)]
-    toks += [f"<KEY:{_encode_char(c)}>" for c in _DIRECT_CHARS]
-    toks += [f"<KEY:{name}>" for name in _ESCAPES.values()]
+    chars = _DIRECT_CHARS + list(_ESCAPES.values())
+    toks += [f"<{c}:{h}>" for c in chars for h in range(config.TIME_BINS)]
+    toks += [f"<BKSP:{h}>" for h in range(config.TIME_BINS)]
+    toks += ["<MODE:T>", "<MODE:C>"]
+    toks += [f"<WPM:{b}>" for b in range(WPM_BINS)]
+    for knob in ("ECOR", "EUNC", "REV"):
+        toks += [f"<{knob}:{b}>" for b in range(PCT_MAX + 1)]
+    toks += list(MARKERS)
     return toks
 
 
-def serialize(events: list[Event]) -> str:
+def serialize(events: list[Event], prev_press_time: int | None = None) -> str:
+    """Events -> token stream.
+
+    `prev_press_time` is the press time of the event immediately before this
+    window; when given, the stream opens with the <DT:k> spanning the window
+    boundary instead of silently dropping that gap.
+    """
     parts: list[str] = []
-    prev_press = events[0].press_time if events else 0
-    for i, e in enumerate(events):
-        dt = 0 if i == 0 else e.press_time - prev_press
-        parts.append(f"<DT:{to_bin(dt)}>")
-        prev_press = e.press_time
+    prev = prev_press_time
+    for e in events:
+        if prev is not None:
+            parts.append(f"<DT:{to_bin(e.press_time - prev)}>")
+        prev = e.press_time
 
         if e.type is EventType.KEY:
-            parts.append(f"<KEY:{_encode_char(e.char)}>")
+            hold = to_bin(e.release_time - e.press_time)
+            parts.append(f"<{_encode_char(e.char)}:{hold}>")
         elif e.type is EventType.BACKSPACE:
-            parts.append("<BKSP>")
+            hold = to_bin(e.release_time - e.press_time)
+            parts.append(f"<BKSP:{hold}>")
         elif e.type is EventType.CURSOR:
             parts.append(f"<CUR:{e.pos}>")
         elif e.type is EventType.SELDEL:
             parts.append(f"<SELDEL:{e.start}-{e.end}>")
-
-        if e.release_time is not None:
-            parts.append(f"<HOLD:{to_bin(e.release_time - e.press_time)}>")
     return "".join(parts)
 
 
@@ -75,34 +132,32 @@ def deserialize(text: str) -> list[Event]:
     events: list[Event] = []
     clock = 0
     pending_dt: int | None = None
-    i = 0
-    while i < len(tokens):
-        kind, arg = tokens[i].group(1), tokens[i].group(2)
-        if kind == "DT":
-            pending_dt = from_bin(int(arg))
-            i += 1
+
+    for m in tokens:
+        if m.group("dt") is not None:
+            if pending_dt is not None:
+                raise ValueError("two <DT:> tokens in a row")
+            pending_dt = from_bin(int(m.group("dt")))
             continue
-        if pending_dt is None:
-            raise ValueError(f"event token {tokens[i].group(0)} not preceded by <DT:>")
-        clock += pending_dt
+
+        # Every event after the first must be preceded by a <DT:>. The first
+        # may carry one too (a continuation window) or start at the clock.
+        if events and pending_dt is None:
+            raise ValueError(f"event token {m.group(0)} not preceded by <DT:>")
+        clock += pending_dt or 0
         pending_dt = None
 
-        # A trailing <HOLD:k> belongs to this event if present.
-        hold = None
-        if i + 1 < len(tokens) and tokens[i + 1].group(1) == "HOLD":
-            hold = from_bin(int(tokens[i + 1].group(2)))
-
-        if kind == "KEY":
-            events.append(Event.key(_decode_char(arg), clock, clock + (hold or 0)))
-        elif kind == "BKSP":
-            events.append(Event.backspace(clock, clock + (hold or 0)))
-        elif kind == "CUR":
-            events.append(Event.cursor(int(arg), clock))
-        elif kind == "SELDEL":
-            start, end = arg.split("-")
-            events.append(Event.seldel(int(start), int(end), clock))
+        if m.group("ch") is not None:
+            hold = from_bin(int(m.group("h")))
+            events.append(Event.key(_decode_char(m.group("ch")), clock, clock + hold))
+        elif m.group("bh") is not None:
+            hold = from_bin(int(m.group("bh")))
+            events.append(Event.backspace(clock, clock + hold))
+        elif m.group("cur") is not None:
+            events.append(Event.cursor(int(m.group("cur")), clock))
         else:
-            raise ValueError(f"unexpected token {tokens[i].group(0)}")
+            events.append(Event.seldel(int(m.group("sa")), int(m.group("sb")), clock))
 
-        i += 2 if hold is not None else 1
+    if pending_dt is not None:
+        raise ValueError("stream ends on a dangling <DT:>")
     return events
