@@ -67,6 +67,11 @@ def extend_and_save(base_model: str, dest: Path, dtype: str) -> int:
 
 
 def convert_to_mlx(src: Path, dest: Path, quantize: bool, bits: int) -> None:
+    # mlx_lm convert refuses to write over an existing directory, which would
+    # make every re-run (e.g. after a grammar change) fail at the last step.
+    if dest.exists():
+        print(f"removing stale {dest}")
+        shutil.rmtree(dest)
     cmd = [sys.executable, "-m", "mlx_lm", "convert",
            "--hf-path", str(src), "--mlx-path", str(dest)]
     if quantize:
