@@ -181,8 +181,18 @@ def main() -> None:
     rejected_wrong_text = 0
     skipped_train_writer = 0
 
+    max_attempts = 3 * args.n
     for i, (writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
         if len(real) >= args.n:
+            break
+        if attempts >= max_attempts:
+            # A mostly-invalid model must not turn the eval into an unbounded
+            # sweep: n counts VALID sessions, so without this cap a model with
+            # zero valid output would grind through every held-out session.
+            # 3n attempts still bounds the success-rate estimate well below
+            # the 0.90 gate.
+            print(f"stopping after {attempts} attempts with {len(real)} valid",
+                  flush=True)
             break
         if test_writers is not None and f"aalto:{writer}" not in test_writers:
             skipped_train_writer += 1
