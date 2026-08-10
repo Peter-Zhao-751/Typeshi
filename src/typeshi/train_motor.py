@@ -248,6 +248,7 @@ def main() -> None:
             bf16=backend["bf16"],
             logging_steps=25,
             save_strategy="epoch",
+            save_total_limit=2,  # fp32 checkpoints run ~14 GB each
             seed=args.seed,
             max_length=2048,
         ),

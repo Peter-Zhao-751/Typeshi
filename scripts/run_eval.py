@@ -143,6 +143,11 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path("eval_report.json"))
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument(
+        "--unconstrained", action="store_true",
+        help="disable grammar-constrained decoding (diagnostic; the product "
+             "path constrains, per the design spec)",
+    )
+    ap.add_argument(
         "--max-new-tokens", type=int, default=512,
         help="generation budget per attempt. A model that never emits EOS "
              "burns the whole budget every time; transcription completions "
@@ -204,10 +209,14 @@ def main() -> None:
                   f"{rejected_malformed} malformed, "
                   f"{rejected_wrong_text} wrong-text", flush=True)
         try:
+            # Two tokens per keystroke plus margin for corrections: a
+            # tight per-target budget keeps failed attempts at seconds.
+            budget = min(args.max_new_tokens, 4 * len(target) + 64)
             generated = generate(
                 model, tok, target, labels,
                 mode="transcription", temperature=args.temperature,
-                max_new_tokens=args.max_new_tokens, seed=i,
+                max_new_tokens=budget, seed=i,
+                constrained=not args.unconstrained,
             )
         except ValueError:
             rejected_malformed += 1
@@ -233,6 +242,7 @@ def main() -> None:
             "sessions_skipped_not_held_out": skipped_train_writer,
             "held_out_writers_only": test_writers is not None,
             "temperature": args.temperature,
+            "constrained_decoding": not args.unconstrained,
             "pass_discriminator_has_teeth": False,
             "pass_serial_dependence_teeth": False,
             "pass_model": False,
@@ -273,6 +283,7 @@ def main() -> None:
         "sessions_skipped_not_held_out": skipped_train_writer,
         "held_out_writers_only": test_writers is not None,
         "temperature": args.temperature,
+        "constrained_decoding": not args.unconstrained,
         "distributional": compare_sessions(real, fake),
         "discriminator_accuracy_vs_model": acc_model,
         "discriminator_accuracy_vs_model_timing_only": acc_model_timing,
