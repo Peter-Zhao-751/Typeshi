@@ -38,23 +38,24 @@ def generate(
     prompt = build_prompt(target_text, labels, mode)
     inputs = tok(prompt, return_tensors="pt").to(model.device)
 
-    processors = None
+    from transformers import LogitsProcessorList
+
+    from typeshi.constrain import GumbelSampleProcessor, TranscriptionGrammarProcessor
+
+    # Sampling happens via Gumbel-argmax in the processor chain, NOT via
+    # do_sample: torch.multinomial on MPS can emit zero-probability tokens
+    # (see GumbelSampleProcessor), which corrupted most masked generations.
+    chain = []
     if constrained:
-        from transformers import LogitsProcessorList
-
-        from typeshi.constrain import TranscriptionGrammarProcessor
-
-        processors = LogitsProcessorList(
-            [TranscriptionGrammarProcessor(tok, inputs["input_ids"].shape[1])]
-        )
+        chain.append(TranscriptionGrammarProcessor(tok, inputs["input_ids"].shape[1]))
+    chain.append(GumbelSampleProcessor(temperature=temperature, seed=seed))
 
     out = model.generate(
         **inputs,
-        do_sample=True,
-        temperature=temperature,
+        do_sample=False,
         max_new_tokens=max_new_tokens,
         pad_token_id=tok.pad_token_id,
-        logits_processor=processors,
+        logits_processor=LogitsProcessorList(chain),
     )
     new_ids = out[0][inputs["input_ids"].shape[1]:].tolist()
 

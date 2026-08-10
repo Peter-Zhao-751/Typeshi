@@ -69,3 +69,37 @@ class TranscriptionGrammarProcessor:
             allowed = self.dt_ids
         mask[:, allowed.to(scores.device)] = 0
         return scores + mask
+
+
+class GumbelSampleProcessor:
+    """Exact softmax sampling without torch.multinomial.
+
+    On MPS, torch.multinomial can sample tokens whose probability is exactly
+    zero -- caught in the act: a masked token with a verified -inf logit was
+    emitted mid-stream (1 violation in ~250 steps corrupts most generations).
+    Gumbel-argmax is distributionally identical to temperature sampling and
+    uses only argmax: scores/T + Gumbel noise, and -inf + noise = -inf can
+    never win. Use with model.generate(do_sample=False); greedy argmax over
+    these perturbed scores IS the sample.
+
+    Noise is drawn on CPU from a seeded generator, so results are
+    reproducible regardless of device kernels.
+    """
+
+    def __init__(self, temperature: float = 1.0, seed: int = 0) -> None:
+        import torch
+
+        self.temperature = max(temperature, 1e-5)
+        self.generator = torch.Generator(device="cpu").manual_seed(seed)
+
+    def __call__(self, input_ids, scores):
+        import torch
+
+        uniform = torch.rand(
+            scores.shape, generator=self.generator, dtype=torch.float32
+        ).to(scores.device)
+        # Explicit steps: method calls bind before unary minus, so the compact
+        # one-liner clamps the WRONG intermediate and NaNs the whole vector.
+        neg_log_u = -torch.log(uniform.clamp_min(1e-20))   # > 0
+        gumbel = -torch.log(neg_log_u.clamp_min(1e-20))
+        return scores / self.temperature + gumbel
