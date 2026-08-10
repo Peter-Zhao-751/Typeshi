@@ -35,6 +35,11 @@ def timing_features(events: list[Event]) -> dict[str, np.ndarray]:
 def pooled_features(sessions: list[list[Event]]) -> dict[str, np.ndarray]:
     """Timing features pooled across many sessions.
 
+    Empty sessions contribute nothing; an all-empty collection therefore
+    produces empty pools and NaN metrics downstream (serialized as null in
+    the report). The eval runner cannot feed empties here -- its validity
+    gate rejects them upstream -- so no count of dropped sessions is kept.
+
     Sessions must not be concatenated into one event list before measuring:
     every session is rebased to zero, so a naive concatenation invents a large
     negative inter-key interval at each boundary, which poisons the IKI
@@ -55,19 +60,33 @@ def pooled_features(sessions: list[list[Event]]) -> dict[str, np.ndarray]:
     }
 
 
+MIN_SAMPLES = 10
+
+
+def _validate_timings(name: str, x: np.ndarray) -> np.ndarray:
+    """Rejects impossible timings, tolerates the boundary case.
+
+    Negative or non-finite values are caller bugs (e.g. concatenating rebased
+    sessions) and raise. ZERO is legitimate: the Aalto adapter clamps logging
+    jitter with release = max(release, press), so a zero hold occurs in real
+    data (~1 in 38k events) -- rejecting it crashed the whole eval. Zeros are
+    lifted to the histogram floor instead of being silently excluded by the
+    log-spaced edges.
+    """
+    if x.size and (not np.isfinite(x).all() or (x < 0).any()):
+        raise ValueError(f"{name}_samples must be finite and non-negative")
+    return np.maximum(x, 1e-3) if x.size else x
+
+
 def kl_divergence(p_samples, q_samples, bins: int = 64) -> float:
     """Symmetrized KL over a shared log-spaced histogram."""
     p_samples = np.asarray(p_samples, dtype=float)
     q_samples = np.asarray(q_samples, dtype=float)
-    # Timings are positive milliseconds by construction; anything else here is
-    # a caller bug (e.g. concatenating rebased sessions). Reject rather than
-    # letting NaN/negatives silently vanish into empty histogram bins.
-    for name, x in (("p", p_samples), ("q", q_samples)):
-        if x.size and (not np.isfinite(x).all() or (x <= 0).any()):
-            raise ValueError(f"{name}_samples must be finite and positive")
+    p_samples = _validate_timings("p", p_samples)
+    q_samples = _validate_timings("q", q_samples)
     # Below ~10 samples the +1e-9 smoothing dominates the estimate (a single
     # 5 vs a single 7 scores ~20 bits of "divergence"), so refuse to guess.
-    if p_samples.size < 10 or q_samples.size < 10:
+    if p_samples.size < MIN_SAMPLES or q_samples.size < MIN_SAMPLES:
         return float("nan")
 
     lo = max(min(p_samples.min(), q_samples.min()), 1e-3)
@@ -82,11 +101,17 @@ def kl_divergence(p_samples, q_samples, bins: int = 64) -> float:
 
 
 def frechet_distance(p_samples, q_samples) -> float:
-    """1-D Frechet distance: (mu1-mu2)^2 + (s1-s2)^2, on log-transformed times."""
-    p = np.log1p(np.asarray(p_samples, dtype=float))
-    q = np.log1p(np.asarray(q_samples, dtype=float))
-    if p.size == 0 or q.size == 0:
+    """1-D Frechet distance: (mu1-mu2)^2 + (s1-s2)^2, on log-transformed times.
+
+    Shares kl_divergence's guards: a singleton previously scored a finite,
+    misleadingly "perfect" 0.0 against itself, and negative/NaN input sailed
+    through log1p as warnings rather than errors.
+    """
+    p = _validate_timings("p", np.asarray(p_samples, dtype=float))
+    q = _validate_timings("q", np.asarray(q_samples, dtype=float))
+    if p.size < MIN_SAMPLES or q.size < MIN_SAMPLES:
         return float("nan")
+    p, q = np.log1p(p), np.log1p(q)
     return float((p.mean() - q.mean()) ** 2 + (p.std() - q.std()) ** 2)
 
 

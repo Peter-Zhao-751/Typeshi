@@ -64,15 +64,46 @@ def test_kl_is_symmetric():
 
 
 def test_frechet_is_zero_for_identical_samples():
-    x = np.array([1.0, 2.0, 3.0, 4.0])
+    x = np.linspace(1.0, 40.0, 12)
     assert frechet_distance(x, x) == pytest.approx(0.0, abs=1e-9)
 
 
 def test_frechet_grows_with_separation():
-    x = np.array([100.0, 110.0, 120.0, 130.0])
+    x = np.linspace(100.0, 130.0, 12)
     near = frechet_distance(x, x + 5)
     far = frechet_distance(x, x + 500)
     assert far > near
+
+
+def test_frechet_refuses_singletons_instead_of_reporting_perfect_zero():
+    """A singleton against itself used to score a finite 0.0 -- a misleading
+    'perfect' result from one observation. Now NaN, like KL."""
+    assert np.isnan(frechet_distance([5.0], [5.0]))
+    assert np.isnan(frechet_distance(list(range(5)), list(range(5))))
+
+
+def test_metrics_reject_impossible_but_tolerate_zero_timings():
+    """Zero holds occur in real Aalto data (release clamped to press, ~1 in
+    38k events); rejecting them crashed the whole eval. Negative and NaN
+    stay hard errors in BOTH metrics."""
+    from typeshi.eval.distributional import kl_divergence
+
+    ok = [0.0] + [float(v) for v in range(1, 15)]
+    assert np.isfinite(kl_divergence(ok, ok))
+    assert np.isfinite(frechet_distance(ok, ok))
+    for bad in ([-1.0] * 15, [float("nan")] * 15, [float("inf")] * 15):
+        with pytest.raises(ValueError):
+            kl_divergence(bad, ok)
+        with pytest.raises(ValueError):
+            frechet_distance(bad, ok)
+
+
+def test_all_empty_collections_score_nan_not_crash():
+    from typeshi.eval.distributional import compare_sessions
+
+    result = compare_sessions([[], []], [[], []])
+    assert all(np.isnan(v["kl"]) and np.isnan(v["frechet"])
+               for v in result.values())
 
 
 def test_empty_input_yields_nan_not_a_crash():

@@ -79,20 +79,22 @@ def real_vs_real_control(
     right = [real_sessions[i] for i in indices[half:]]
     if not left or not right:
         return float("nan")
-    _, accuracy = train_discriminator(left, right, seed=seed)
+    _, accuracy = train_discriminator(left, right, paired=False, seed=seed)
     return accuracy
 
 
 def train_discriminator(
     real_sessions: list[list[Event]],
     fake_sessions: list[list[Event]],
+    *,
+    paired: bool,
     seed: int = 0,
-    paired: bool = False,
     count_features: bool = True,
 ) -> tuple[object, float]:
     """Cross-validated real-vs-fake accuracy.
 
-    `paired=True` MUST be used whenever fake session i was generated for the
+    `paired` has no default deliberately: forgetting it silently reintroduces
+    the below-chance leak, so every caller must decide. It MUST be True whenever fake session i was generated for the
     same target as real session i. Plain stratified folds put one member of a
     pair in training and its opposite-labelled near-twin in validation, which
     biases accuracy BELOW chance -- measured 0.085 on exact-copy fakes, where

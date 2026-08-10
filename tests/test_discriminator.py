@@ -54,7 +54,7 @@ def test_discriminator_easily_catches_the_heuristic_baseline():
     real = [_lognormal_session(rng) for _ in range(60)]
     fake = [heuristic_baseline("the quick brown fox jumps", wpm=60, seed=i)
             for i in range(60)]
-    _, acc = train_discriminator(real, fake, seed=0)
+    _, acc = train_discriminator(real, fake, paired=False, seed=0)
     assert acc > 0.9
 
 
@@ -63,7 +63,7 @@ def test_discriminator_cannot_separate_identical_distributions():
     rng = np.random.default_rng(0)
     a = [_lognormal_session(rng) for _ in range(60)]
     b = [_lognormal_session(rng) for _ in range(60)]
-    _, acc = train_discriminator(a, b, seed=0)
+    _, acc = train_discriminator(a, b, paired=False, seed=0)
     assert acc < 0.65
 
 
@@ -72,8 +72,8 @@ def test_discriminator_is_deterministic_for_a_seed():
     real = [_lognormal_session(rng) for _ in range(40)]
     fake = [heuristic_baseline("hello there friend", wpm=55, seed=i)
             for i in range(40)]
-    _, first = train_discriminator(real, fake, seed=0)
-    _, second = train_discriminator(real, fake, seed=0)
+    _, first = train_discriminator(real, fake, paired=False, seed=0)
+    _, second = train_discriminator(real, fake, paired=False, seed=0)
     assert first == second
 
 
@@ -103,7 +103,7 @@ def test_sequential_split_inflates_accuracy_which_is_why_the_control_shuffles():
     fast = [_lognormal_session(rng, mu=4.0) for _ in range(30)]
     slow = [_lognormal_session(rng, mu=6.0) for _ in range(30)]
 
-    _, sequential = train_discriminator(fast, slow, seed=0)
+    _, sequential = train_discriminator(fast, slow, paired=False, seed=0)
     shuffled = real_vs_real_control(fast + slow, seed=0)
 
     assert sequential > 0.8, "distinct typist populations are separable"
@@ -161,7 +161,7 @@ def test_paired_cv_scores_exact_copies_at_chance_not_below():
     real = [_lognormal_session(rng) for _ in range(100)]
     copies = [list(s) for s in real]
 
-    _, unpaired = train_discriminator(real, copies, seed=0)
+    _, unpaired = train_discriminator(real, copies, paired=False, seed=0)
     _, paired = train_discriminator(real, copies, seed=0, paired=True)
     assert unpaired < 0.30, "the leak this guards against has disappeared?"
     assert 0.40 <= paired <= 0.60
@@ -232,3 +232,27 @@ def test_split_loader_rejects_overlapping_writer_sets(tmp_path):
     }))
     with pytest.raises(SystemExit):
         load_test_writers(path, allow_unsplit=False)
+
+
+def test_paired_folds_never_split_a_pair():
+    """Direct assertion of the mechanism: with paired grouping, both members
+    of every real/fake pair land on the same side of every fold."""
+    import numpy as np
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    n = 40
+    groups = np.tile(np.arange(n), 2)
+    y = np.array([1] * n + [0] * n)
+    X = np.zeros((2 * n, 3))
+    cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=0)
+    for train_idx, test_idx in cv.split(X, y, groups):
+        assert not (set(groups[train_idx]) & set(groups[test_idx]))
+
+
+def test_paired_is_a_required_argument():
+    """Omitting `paired` must be a TypeError, not a silent unpaired default
+    that reintroduces the below-chance leak."""
+    rng = np.random.default_rng(0)
+    sessions = [_lognormal_session(rng) for _ in range(20)]
+    with pytest.raises(TypeError):
+        train_discriminator(sessions, sessions)
