@@ -219,10 +219,32 @@ def main() -> None:
         fake.append(generated)
         baseline.append(heuristic_baseline(target, wpm=labels.wpm or 60, seed=i))
 
-    if not real:
-        raise SystemExit("no valid generations to score; check the checkpoint")
-
     success_rate = len(real) / attempts if attempts else 0.0
+
+    if not real:
+        # Zero valid generations is a RESULT, not an error: report it with
+        # every gate failed rather than discarding the attempt statistics.
+        report = {
+            "sessions_scored": 0,
+            "generation_attempts": attempts,
+            "generation_success_rate": 0.0,
+            "generations_rejected_as_malformed": rejected_malformed,
+            "generations_rejected_wrong_text": rejected_wrong_text,
+            "sessions_skipped_not_held_out": skipped_train_writer,
+            "held_out_writers_only": test_writers is not None,
+            "temperature": args.temperature,
+            "pass_discriminator_has_teeth": False,
+            "pass_serial_dependence_teeth": False,
+            "pass_model": False,
+            "pass_generation_validity": False,
+            "pass_control_near_chance": False,
+            "tier1_met": False,
+            "note": "no valid generations; discriminator metrics not computable",
+        }
+        payload = json.dumps(jsonable(report), indent=2)
+        args.out.write_text(payload)
+        print(payload)
+        return
 
     # All comparisons against generations/baselines are PAIRED (same targets).
     _, acc_model = train_discriminator(real, fake, paired=True)
