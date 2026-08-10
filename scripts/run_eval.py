@@ -142,6 +142,13 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--out", type=Path, default=Path("eval_report.json"))
     ap.add_argument("--temperature", type=float, default=1.0)
+    ap.add_argument(
+        "--max-new-tokens", type=int, default=512,
+        help="generation budget per attempt. A model that never emits EOS "
+             "burns the whole budget every time; transcription completions "
+             "average ~92 tokens, so 512 is generous while keeping a failed "
+             "generation at seconds rather than minutes",
+    )
     args = ap.parse_args()
 
     import torch
@@ -182,10 +189,15 @@ def main() -> None:
             continue
         labels = compute_labels(events, target)
         attempts += 1
+        if attempts % 10 == 0:
+            print(f"  attempt {attempts}: {len(real)} valid, "
+                  f"{rejected_malformed} malformed, "
+                  f"{rejected_wrong_text} wrong-text", flush=True)
         try:
             generated = generate(
                 model, tok, target, labels,
-                mode="transcription", temperature=args.temperature, seed=i,
+                mode="transcription", temperature=args.temperature,
+                max_new_tokens=args.max_new_tokens, seed=i,
             )
         except ValueError:
             rejected_malformed += 1
