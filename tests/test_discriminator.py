@@ -122,3 +122,31 @@ def test_report_nan_is_serialised_as_null():
     cleaned = jsonable({"pause": {"kl": float("nan"), "frechet": 1.5}, "n": 3})
     assert cleaned["pause"]["kl"] is None
     assert json.loads(json.dumps(cleaned))["pause"]["frechet"] == 1.5
+
+
+def test_eval_refuses_to_run_without_the_writer_split(tmp_path):
+    """Tier-1 is meaningless if scored on writers the model trained on, so a
+    missing split file must be a hard stop rather than a silent full sweep."""
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from run_eval import load_test_writers
+
+    missing = tmp_path / "split.json"
+    with pytest.raises(SystemExit):
+        load_test_writers(missing, allow_unsplit=False)
+    assert load_test_writers(missing, allow_unsplit=True) is None
+
+
+def test_eval_reads_the_held_out_writers(tmp_path):
+    import json
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from run_eval import load_test_writers
+
+    path = tmp_path / "split.json"
+    path.write_text(json.dumps({
+        "train_writers": ["aalto:1", "aalto:2"], "test_writers": ["aalto:3"],
+    }))
+    assert load_test_writers(path, allow_unsplit=False) == {"aalto:3"}

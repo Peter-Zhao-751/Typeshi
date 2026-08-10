@@ -27,6 +27,29 @@ PASS_MODEL_MAX = 0.55
 PASS_TEETH_MIN = 0.90
 
 
+def load_test_writers(split_path: Path, allow_unsplit: bool) -> set[str] | None:
+    """Writer IDs held out at dataset-build time, or None to score everything.
+
+    The plan holds out by writer, never by session. The eval has to honour the
+    *same* split, otherwise it scores realism on writers the model trained on
+    and Tier-1 passes for the wrong reason.
+    """
+    if split_path.exists():
+        payload = json.loads(split_path.read_text())
+        writers = set(payload["test_writers"])
+        print(f"scoring {len(writers)} held-out writers from {split_path}")
+        return writers
+    if allow_unsplit:
+        print(f"WARNING: {split_path} missing and --allow-unsplit set; results "
+              "may include writers seen during training")
+        return None
+    raise SystemExit(
+        f"{split_path} not found. It is written by scripts/build_dataset.py and "
+        "is what keeps the eval off training writers. Rebuild the dataset, copy "
+        "the file across, or pass --allow-unsplit if you accept a leaky number."
+    )
+
+
 def jsonable(value):
     """Turns NaN into null.
 
@@ -47,6 +70,19 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", type=Path, default=Path("checkpoints/motor"))
     ap.add_argument("--held-out", type=Path, default=Path("data/raw/aalto"))
+    ap.add_argument(
+        "--split",
+        type=Path,
+        default=Path("data/processed/split.json"),
+        help="writer split written by build_dataset.py; scoring is restricted "
+             "to its test writers so the model is never evaluated on writers "
+             "it trained on",
+    )
+    ap.add_argument(
+        "--allow-unsplit",
+        action="store_true",
+        help="score every session found, even training writers (debug only)",
+    )
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--out", type=Path, default=Path("eval_report.json"))
     ap.add_argument("--temperature", type=float, default=1.0)
@@ -58,14 +94,20 @@ def main() -> None:
     tok = AutoTokenizer.from_pretrained(args.checkpoint)
     model = AutoPeftModelForCausalLM.from_pretrained(args.checkpoint, device_map="auto")
 
+    test_writers = load_test_writers(args.split, args.allow_unsplit)
+
     real: list = []
     fake: list = []
     baseline: list = []
     skipped = 0
+    skipped_train_writer = 0
 
-    for i, (_writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
+    for i, (writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
         if len(real) >= args.n:
             break
+        if test_writers is not None and f"aalto:{writer}" not in test_writers:
+            skipped_train_writer += 1
+            continue
         labels = compute_labels(events, target)
         try:
             generated = generate(
@@ -92,6 +134,8 @@ def main() -> None:
 
     report = {
         "sessions_scored": len(real),
+        "sessions_skipped_not_held_out": skipped_train_writer,
+        "held_out_writers_only": test_writers is not None,
         "generations_rejected_as_malformed": skipped,
         "temperature": args.temperature,
         "distributional": compare_sessions(real, fake),

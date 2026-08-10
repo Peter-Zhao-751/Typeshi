@@ -98,6 +98,23 @@ def main() -> None:
                     written += 1
         print(f"wrote {written} examples from {len(ids)} writers to {path}")
 
+    # The eval needs to know which writers were held out. Without this it would
+    # re-derive the split from whatever corpus files happen to be on the eval
+    # machine, which is not the same population and would silently score the
+    # model on writers it trained on.
+    split_path = args.out / "split.json"
+    split_path.write_text(
+        json.dumps(
+            {
+                "seed": args.seed,
+                "test_frac": args.test_frac,
+                "train_writers": sorted(train_ids),
+                "test_writers": sorted(test_ids),
+            }
+        )
+    )
+    print(f"wrote writer split to {split_path}")
+
 
 if __name__ == "__main__":
     main()
