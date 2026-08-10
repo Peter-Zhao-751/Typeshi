@@ -49,7 +49,7 @@ def test_peft_config_targets_attention_projections():
         # Older CUDA cards fall back to fp32, NOT fp16: loading fp16 weights
         # without a GradScaler is unscaled full-fp16 training, which diverges.
         (True, False, False, "float32", False),
-        (False, False, True, "float32", False),   # Apple Silicon
+        (False, False, True, "float32", False),   # Apple Silicon (CPU load)
         (False, False, False, "float32", False),  # plain CPU
     ],
 )
@@ -70,6 +70,16 @@ def test_bfloat16_is_never_paired_with_device_map_off_cuda():
     for cuda, bf16, mps in [(False, False, True), (False, True, True), (False, False, False)]:
         got = select_backend(has_cuda=cuda, has_bf16=bf16, has_mps=mps)
         assert not (got["dtype"] == "bfloat16" and got["device_map"] == "auto")
+
+
+def test_mps_loads_on_cpu_and_lets_the_trainer_place_the_model():
+    """device_map="auto" on MPS aborts (SIGABRT) for hybrid-attention archs
+    like Qwen3.5, on top of the bf16 segfault. The Trainer moves a CPU-loaded
+    model to MPS itself, so no device_map is the safe MPS configuration."""
+    from typeshi.train_motor import select_backend
+
+    got = select_backend(has_cuda=False, has_bf16=False, has_mps=True)
+    assert got["device_map"] is None
 
 
 def test_half_precision_is_never_emitted_without_mixed_precision():
