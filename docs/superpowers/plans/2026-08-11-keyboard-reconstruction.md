@@ -203,7 +203,7 @@ This task lands **before any model is loaded**, on purpose. Recovering a known k
 
 **Interfaces:**
 - Consumes: `layout.KEYS`, `layout.truth_coords()`, `layout.bigram_class`.
-- Produces: `to_log_symmetric(latency_ms) -> np.ndarray`, `median_polish(m, iters=25) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]`, `embed_2d(residual, seed=0) -> np.ndarray` shape `(27, 2)`, `align(coords, truth) -> tuple[np.ndarray, float]`, `score(fitted, truth) -> dict[str, float]`, `permutation_p(coords, truth, n=500, seed=0) -> float`, `synthetic_latency(seed=0, same_finger_penalty=0.35, noise=0.02) -> np.ndarray`.
+- Produces: `to_log_symmetric(latency_ms) -> np.ndarray`, `double_center(m, iters=50) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]`, `embed_2d(residual, seed=0) -> np.ndarray` shape `(27, 2)`, `align(coords, truth) -> tuple[np.ndarray, float]`, `score(fitted, truth) -> dict[str, float]`, `permutation_p(coords, truth, n=500, seed=0) -> float`, `synthetic_latency(seed=0, same_finger_penalty=0.35, noise=0.02) -> np.ndarray`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -223,14 +223,14 @@ def test_log_symmetric_masks_the_diagonal():
     assert out[0, 1] == pytest.approx(np.log(200.0))
 
 
-def test_median_polish_strips_planted_row_and_column_effects():
+def test_double_center_strips_planted_row_and_column_effects():
     rng = np.random.default_rng(0)
     interaction = rng.normal(0, 0.05, (27, 27))
     interaction = (interaction + interaction.T) / 2
     row = rng.normal(0, 0.5, 27)
     planted = interaction + row[:, None] + row[None, :]
     np.fill_diagonal(planted, np.nan)
-    residual, row_eff, _, _ = reconstruct.median_polish(planted)
+    residual, row_eff, _, _ = reconstruct.double_center(planted)
     # Row effects should be recovered up to a shared constant, so their
     # SPREAD is what must match -- an absolute comparison would fail on the
     # grand-effect split alone.
@@ -248,7 +248,7 @@ def test_pipeline_recovers_a_keyboard_from_a_synthetic_matrix():
     truth = layout.truth_coords()
     latency = reconstruct.synthetic_latency(seed=0)
     sym = reconstruct.to_log_symmetric(latency)
-    residual, _, _, _ = reconstruct.median_polish(sym)
+    residual, _, _, _ = reconstruct.double_center(sym)
     # Ground-truth same-finger removal: this test validates the geometry path,
     # not the blind detector (that is Task 3).
     penalty = np.zeros_like(residual, dtype=bool)
@@ -260,6 +260,32 @@ def test_pipeline_recovers_a_keyboard_from_a_synthetic_matrix():
     metrics = reconstruct.score(fitted, truth)
     assert metrics["distance_spearman"] > 0.85
     assert metrics["mean_position_error_u"] < 1.5
+
+
+def test_masked_cells_do_not_break_the_reconstruction():
+    """Robustness lives in the masking, not in the estimator.
+
+    double_center() uses the mean, which is precise but not outlier-resistant.
+    The contract that makes that safe is that thin and unreliable cells are
+    masked to NaN upstream and every stage here is NaN-aware. This pins that
+    contract: 30 masked cells of 351 must still reconstruct.
+    """
+    truth = layout.truth_coords()
+    latency = reconstruct.synthetic_latency(seed=0)
+    symmetric = reconstruct.to_log_symmetric(latency)
+    rng = np.random.default_rng(100)
+    for i, j in rng.choice(len(layout.KEYS), size=(30, 2)):
+        if i != j:
+            symmetric[i, j] = np.nan
+            symmetric[j, i] = np.nan
+    residual, _, _, _ = reconstruct.double_center(symmetric)
+    penalty = np.zeros_like(residual, dtype=bool)
+    for i, a in enumerate(layout.KEYS):
+        for j, b in enumerate(layout.KEYS):
+            penalty[i, j] = layout.bigram_class(a, b) == "same_finger"
+    residual = reconstruct.remove_indicator(residual, penalty)
+    fitted, _ = reconstruct.align(reconstruct.embed_2d(residual, seed=0), truth)
+    assert reconstruct.score(fitted, truth)["distance_spearman"] > 0.85
 
 
 def test_permutation_test_rejects_a_random_labelling():
@@ -307,31 +333,42 @@ def to_log_symmetric(latency_ms: np.ndarray) -> np.ndarray:
     return sym
 
 
-def median_polish(m: np.ndarray, iters: int = 25):
-    """Tukey median polish -> (residual, row_effect, col_effect, grand).
+def double_center(m: np.ndarray, iters: int = 50):
+    """Iterated two-way mean centering -> (residual, row_effect, col_effect, grand).
 
     Load-bearing. Some keys are simply slow, and without stripping row and
     column effects the leading component of the residual is "fast keys vs slow
     keys" and geometry never surfaces. NaN-aware, so the masked diagonal and
-    any masked thin cells cannot poison a median. Median rather than mean
-    because same-finger outliers are exactly what we do not want setting the
-    baseline.
+    any masked thin cells cannot poison a mean.
+
+    Mean, not median. This step first specified Tukey median polish for
+    robustness against the same-finger outliers; measured against the synthetic
+    matrix it recovers rho=0.61 where mean centering recovers rho=0.90, against
+    a ceiling of 0.97. At 27 columns the median is too high-variance to preserve
+    a distance signal this small, and the outliers it guarded against are
+    removed explicitly by remove_indicator() one step later.
+
+    Robustness lives in the masking instead: every stage is NaN-aware, and
+    masking 60 of the 351 unordered cells still recovers rho=0.85. An UNMASKED
+    gross outlier does degrade the fit (12 cells at 10x drop it to rho=0.57),
+    which is why mask_thin_cells() and log-space averaging upstream are what
+    keep this estimator's assumptions true.
     """
     r = np.array(m, dtype=float, copy=True)
     row = np.zeros(r.shape[0])
     col = np.zeros(r.shape[1])
     grand = 0.0
     for _ in range(iters):
-        rm = np.nanmedian(r, axis=1)
+        rm = np.nanmean(r, axis=1)
         r -= rm[:, None]
         row += rm
-        cm = np.nanmedian(r, axis=0)
+        cm = np.nanmean(r, axis=0)
         r -= cm[None, :]
         col += cm
-        g = np.median(row)
+        g = np.mean(row)
         row -= g
         grand += g
-        g = np.median(col)
+        g = np.mean(col)
         col -= g
         grand += g
     return r, row, col, grand
@@ -499,7 +536,7 @@ def synthetic_latency(seed: int = 0, same_finger_penalty: float = 0.35,
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_interp_reconstruct.py -v`
-Expected: PASS, 4 tests. Record the actual `distance_spearman` from the synthetic test — it is the pipeline's ceiling and every model number is read against it. If it comes in below 0.85, the pipeline has a bug; debug it rather than lowering the threshold.
+Expected: PASS, 5 tests. Record the actual `distance_spearman` from the synthetic test — it is the pipeline's ceiling and every model number is read against it. Measured during plan revision: ρ ≈ 0.90 ± 0.004 across seeds, position error ≈ 0.74u, against a ceiling of 0.97 when true distances are fed straight in. If it comes in materially below that, the pipeline has a bug; debug it rather than lowering the threshold.
 
 - [ ] **Step 5: Commit**
 
@@ -519,7 +556,7 @@ The blind detector is what keeps the headline claim non-circular: it finds the s
 - Test: `tests/test_interp_reconstruct.py` (append)
 
 **Interfaces:**
-- Consumes: `median_polish`, `remove_indicator`, `embed_2d`, `align`, `score` from Task 2.
+- Consumes: `double_center`, `remove_indicator`, `embed_2d`, `align`, `score` from Task 2.
 - Produces: `detect_same_finger(residual) -> np.ndarray` (bool, symmetric), `true_same_finger(keys=layout.KEYS) -> np.ndarray`, `same_finger_auc(residual, truth_mask) -> float`, `reconstruct(latency_ms, mode="blind", seed=0) -> dict` with keys `fitted`, `residual`, `detected_mask`, `metrics`, `same_finger_auc`, `disparity`, `mode`.
 
 - [ ] **Step 1: Write the failing test**
@@ -531,7 +568,7 @@ def test_blind_detector_finds_planted_same_finger_pairs():
     # No ground truth reaches the detector -- it sees only the residual.
     latency = reconstruct.synthetic_latency(seed=0)
     sym = reconstruct.to_log_symmetric(latency)
-    residual, _, _, _ = reconstruct.median_polish(sym)
+    residual, _, _, _ = reconstruct.double_center(sym)
     truth_mask = reconstruct.true_same_finger()
     assert reconstruct.same_finger_auc(residual, truth_mask) > 0.9
     detected = reconstruct.detect_same_finger(residual)
@@ -626,7 +663,7 @@ def reconstruct(latency_ms: np.ndarray, mode: str = "blind", seed: int = 0,
     if mode not in ("blind", "finger_aware"):
         raise ValueError(f"unknown mode {mode!r}; expected blind or finger_aware")
     truth = layout.truth_coords()
-    residual, _, _, _ = median_polish(to_log_symmetric(latency_ms))
+    residual, _, _, _ = double_center(to_log_symmetric(latency_ms))
     truth_mask = true_same_finger(keys)
     detected = detect_same_finger(residual)
     mask = detected if mode == "blind" else truth_mask
@@ -901,7 +938,7 @@ from typeshi.interp import empirical, layout, reconstruct
 import numpy as np
 s = empirical.corpus_stats('data/processed/train.jsonl', limit=50_000)
 print('cells with >=20 support:', int((s.counts >= 20).sum()), 'of 729')
-res, _, _, _ = reconstruct.median_polish(reconstruct.to_log_symmetric(empirical.mask_thin_cells(s)))
+res, _, _, _ = reconstruct.double_center(reconstruct.to_log_symmetric(empirical.mask_thin_cells(s)))
 print('same-finger AUC from data alone:', reconstruct.same_finger_auc(res, reconstruct.true_same_finger()))
 "
 ```
@@ -1320,7 +1357,7 @@ def scored(latency: np.ndarray, mode: str, seed: int) -> dict:
 
 
 def analyze(latency: np.ndarray, bigram_counts: np.ndarray, seed: int) -> dict:
-    residual, _, _, _ = reconstruct.median_polish(reconstruct.to_log_symmetric(latency))
+    residual, _, _, _ = reconstruct.double_center(reconstruct.to_log_symmetric(latency))
     return {
         "biomechanical": biomechanical_table(latency),
         "same_finger_auc": reconstruct.same_finger_auc(

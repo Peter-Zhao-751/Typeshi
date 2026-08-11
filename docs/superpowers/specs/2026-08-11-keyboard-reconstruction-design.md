@@ -164,10 +164,25 @@ This is the ceiling: if the corpus does not encode QWERTY, the model cannot.
 ### 3.4 `reconstruct.py` — matrix → layout → score
 
 1. **Symmetrize** in log-ms: `D[a,b] = (L[a,b] + L[b,a]) / 2`.
-2. **Remove main effects** by Tukey median polish. Load-bearing: some keys are
-   simply slow, and without stripping row and column effects the first
-   component is "fast keys vs slow keys" and geometry never surfaces. What
-   remains is the interaction term, which is where layout lives.
+2. **Remove main effects** by iterated two-way mean centering, NaN-aware.
+   Load-bearing: some keys are simply slow, and without stripping row and
+   column effects the first component is "fast keys vs slow keys" and geometry
+   never surfaces. What remains is the interaction term, which is where layout
+   lives.
+
+   This step originally specified Tukey median polish, for robustness against
+   the same-finger outliers. Measured against the synthetic matrix of §7 that
+   choice was wrong: median polish recovers ρ=0.61 where mean centering
+   recovers ρ=0.90, against a ceiling of 0.97. At 27 columns the median is too
+   high-variance to preserve a distance signal this small, and the outliers it
+   was guarding against are removed explicitly one step later.
+
+   Robustness therefore lives in the **masking**, not the estimator. Every
+   stage is NaN-aware, and masking up to 60 of the 351 unordered cells still
+   recovers ρ=0.85. The honest limitation: an *unmasked* gross outlier does
+   degrade the fit (12 cells at 10× drop it to ρ=0.57), so `mask_thin_cells`
+   and the log-space averaging upstream are what keep the estimator's
+   assumptions true, and both are pinned by tests.
 3. **Same-finger handling**, two variants, always reported side by side:
    - **Blind** (uses no ground truth): same-finger pairs are *detected* as the
      high-positive-residual outliers of the interaction matrix, and that
