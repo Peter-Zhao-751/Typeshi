@@ -57,6 +57,20 @@ def main() -> None:
     train_ids, test_ids = split_by_writer(
         (w for w, _ in rows), test_frac=args.test_frac, seed=args.seed
     )
+    # The hash split assigns writers independently, so tiny builds can land
+    # every writer on one side. An empty holdout must fail HERE: written to
+    # split.json it would ride into the checkpoint, and the eval would score
+    # zero held-out sessions after parsing the whole corpus looking for them.
+    if rows and args.test_frac > 0 and not test_ids:
+        raise SystemExit(
+            f"writer split held out 0 of {len(train_ids)} writers "
+            f"(test_frac={args.test_frac}); build with more files"
+        )
+    if rows and args.test_frac < 1 and not train_ids:
+        raise SystemExit(
+            f"writer split kept 0 of {len(test_ids)} writers for training "
+            f"(test_frac={args.test_frac}); build with more files"
+        )
     args.out.mkdir(parents=True, exist_ok=True)
 
     for name, ids in (("train", train_ids), ("test", test_ids)):

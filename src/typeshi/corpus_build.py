@@ -83,6 +83,7 @@ def map_file_rows(
     workers: int,
     label: str = "corpus",
     progress_every: int = 2000,
+    chunksize: int | None = None,
 ) -> tuple[list[Row], int]:
     """Order-preserving map of `file_rows` over `files`, across processes.
 
@@ -92,6 +93,11 @@ def map_file_rows(
     polars fresh; the parent's already-started pool is unaffected) -- per-file
     frames are tiny, so intra-file threading buys nothing, and N workers each
     spawning a full-width rayon pool would oversubscribe the box.
+
+    `chunksize=None` scales the imap chunk to the work: a fixed 16 starved
+    small builds (a 100-file --limit-aalto dispatched at most 7 of 24
+    workers) and, worse, let the tests run every "parallel" case as a single
+    chunk on a single worker. Ordering is by submission either way.
     """
     total = len(files)
     rows: list[Row] = []
@@ -109,10 +115,12 @@ def map_file_rows(
         consume(map(file_rows, files))
         return rows, dropped
 
+    if chunksize is None:
+        chunksize = max(1, min(16, total // (workers * 4)))
     os.environ["POLARS_MAX_THREADS"] = "1"
     ctx = mp.get_context("spawn")
     with ctx.Pool(processes=min(workers, total)) as pool:
-        consume(pool.imap(file_rows, files, chunksize=16))
+        consume(pool.imap(file_rows, files, chunksize=chunksize))
     return rows, dropped
 
 

@@ -93,6 +93,15 @@ def test_split_is_by_writer_and_deterministic():
     assert 3 <= len(test_a) <= 20
 
 
+def test_split_fraction_converges_at_scale():
+    """The 3..20 band above is loose by necessity (100 writers); at corpus
+    scale the independent assignments must actually deliver test_frac, or a
+    2x-off holdout could hide behind the small-n tolerance forever."""
+    writers = [f"w{i}" for i in range(10_000)]
+    _, test = split_by_writer(writers, test_frac=0.1, seed=0)
+    assert 0.09 <= len(test) / len(writers) <= 0.11
+
+
 def test_split_is_stable_under_subsetting():
     """A subset build and a full build must agree on every shared writer.
 
