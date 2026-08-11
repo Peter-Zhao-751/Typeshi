@@ -66,7 +66,7 @@ language. TRL masks the prompt from the loss — only the event stream trains.
    3.8k -> 17.7k examples) says data volume is the binding lever, so expect
    to scale up quickly if validity tracks that curve; a full epoch is ~215M
    tokens.
-4. Run `scripts/run_eval.py` and read the report.
+4. Run `python scripts/run_eval.py --checkpoint checkpoints/motor --n 200 --out eval_report.json` and read the report.
 5. Iterate toward the gates. If the model fails, the levers in plan order are:
    more data, lower sampling temperature, longer training, then a
    sequence-model discriminator to find what summary statistics miss.

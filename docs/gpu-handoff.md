@@ -85,7 +85,7 @@ Confirm the log shows `backend: {'dtype': 'bfloat16', ... 'bf16': True}`,
 
 ```bash
 python -m typeshi.train_motor --mode transcription --out checkpoints/motor \
-  2>&1 | tee logs/train.log
+  2>&1 | tee logs/train-gpu.log     # train-*.log so watch_training.py finds it
 ```
 
 **Consider a subset first.** The transcription split is 1,989,167 examples of
@@ -133,6 +133,7 @@ held-out writers under an existing checkpoint.
 ## 6. Bring back
 
 ```bash
+mkdir -p checkpoints   # gitignored, so absent on a fresh clone
 rsync -avz ubuntu@<host>:~/Typeshi/checkpoints/motor/ ./checkpoints/motor/
 rsync -avz ubuntu@<host>:~/Typeshi/eval_report.json ./
 ```

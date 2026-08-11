@@ -60,6 +60,8 @@ fi
 echo "==> test suite (offline; should be all green before training)"
 python -m pytest -q
 
+mkdir -p logs checkpoints  # referenced by the train/eval commands below
+
 echo "==> dataset rebuild (~25 min single-process)"
 if [ ! -f "data/processed/split.json" ]; then
   python scripts/build_dataset.py --klicke /nonexistent
