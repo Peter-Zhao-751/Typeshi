@@ -53,3 +53,61 @@ def test_constrained_mode_rejects_composition():
     with pytest.raises(ValueError):
         generate(None, None, "x", SessionLabels(60, 0, 0, 0),
                  mode="composition", constrained=True)
+
+
+# ---- Offline mask tests (tiny tokenizer needs no network) ----------------
+
+
+@pytest.fixture(scope="module")
+def tiny_tok():
+    from typeshi.tiny_tokenizer import build_tiny_tokenizer
+
+    return build_tiny_tokenizer()
+
+
+def _masked_scores(tiny_tok, n_generated: int):
+    import torch
+
+    from typeshi.constrain import TranscriptionGrammarProcessor
+
+    prompt_len = 5
+    proc = TranscriptionGrammarProcessor(tiny_tok, prompt_len)
+    input_ids = torch.zeros((1, prompt_len + n_generated), dtype=torch.long)
+    scores = torch.zeros((1, len(tiny_tok)))
+    return proc(input_ids, scores)
+
+
+def test_eos_illegal_at_stream_start(tiny_tok):
+    out = _masked_scores(tiny_tok, 0)
+    assert out[0, tiny_tok.eos_token_id].item() == float("-inf")
+
+
+def test_eos_legal_in_event_slot_after_start(tiny_tok):
+    out = _masked_scores(tiny_tok, 2)
+    assert out[0, tiny_tok.eos_token_id].item() == 0.0
+
+
+def test_eos_legal_in_gap_slot(tiny_tok):
+    """TRL appends EOS right after the final event token -- a gap slot. The
+    mask must allow what training taught, or a from-scratch model can never
+    terminate. A stream ending event-then-EOS has no dangling <DT:>."""
+    out = _masked_scores(tiny_tok, 1)
+    assert out[0, tiny_tok.eos_token_id].item() == 0.0
+
+
+def test_gap_slot_still_rejects_events_and_event_slot_rejects_dt(tiny_tok):
+    event_id = tiny_tok.convert_tokens_to_ids("<a:50>")
+    dt_id = tiny_tok.convert_tokens_to_ids("<DT:50>")
+    gap = _masked_scores(tiny_tok, 1)
+    assert gap[0, event_id].item() == float("-inf")
+    assert gap[0, dt_id].item() == 0.0
+    event = _masked_scores(tiny_tok, 2)
+    assert event[0, dt_id].item() == float("-inf")
+    assert event[0, event_id].item() == 0.0
+
+
+def test_plain_text_char_masked_in_every_slot(tiny_tok):
+    char_id = tiny_tok.convert_tokens_to_ids("a")
+    for n in (0, 1, 2):
+        out = _masked_scores(tiny_tok, n)
+        assert out[0, char_id].item() == float("-inf")
