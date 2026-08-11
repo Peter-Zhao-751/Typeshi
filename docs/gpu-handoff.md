@@ -7,11 +7,14 @@ is the fine-tune itself, which does not fit on a Mac (see
 
 ## 1. What to rent
 
-The run needs one GPU with **at least 48 GB**, and 80 GB is comfortable.
+The default model (Qwen3.5-4B, tied embeddings) trains in a **measured
+24.1 GiB peak** at `--batch 32`, so 32 GB is workable and 48+ GB comfortable.
 Multi-GPU buys nothing here — do not complicate the setup with it.
 
-Memory budget for Qwen2.5-7B with the extended 164,874-token vocabulary
-(152,064 base + 12,810 event/knob tokens, format v2):
+Budget for the Qwen2.5-7B *alternative* with its extended 164,874-token
+vocabulary (152,064 base + 12,810 event/knob tokens, format v2) — this model
+unties its embeddings, roughly doubling the trainable footprint, and needs
+**at least 48 GB**:
 
 | Component | Size |
 |---|---|
@@ -21,9 +24,10 @@ Memory budget for Qwen2.5-7B with the extended 164,874-token vocabulary
 | fp32 master copy | 4.9 GB |
 | **Subtotal** | **32.5 GB** + activations |
 
-The ~1.2B trainable parameters are mostly `embed_tokens` and `lm_head`
-(591M each), which are trained because the 12,810 event tokens are new — see
-"Why the embeddings are trainable" below.
+Its ~1.2B trainable parameters are mostly `embed_tokens` and `lm_head`
+(591M each; the 4B default ties them into one 668M table), trained because
+the 12,810 event tokens are new — see "Why the embeddings are trainable"
+below.
 
 | Instance | Verdict |
 |---|---|
@@ -195,16 +199,20 @@ fidelity, and say so in any writeup.
 
 ## Base model
 
-`config.BASE_MODEL` is `Qwen/Qwen2.5-7B-Instruct` — ungated, no login needed,
-and permitted by the plan ("Llama or Qwen"). It is the recommended GPU
-default: plain attention, untied embeddings, and the whole pipeline is
-tested against it.
+`config.BASE_MODEL` is `Qwen/Qwen3.5-4B` — ungated, the same family as the
+0.8B the local shakedown trained, and permitted by the plan ("Llama or
+Qwen"). It is a hybrid: 24 of its 32 layers are linear attention, so on CUDA
+`flash-linear-attention` AND `causal-conv1d` must BOTH import (setup_gpu.sh
+installs them) or transformers disarms the entire fast path — measured
+without them: decode ~15 tok/s, which turns every eval into hours. Its
+embeddings are tied, which is why it trains in ~24 GiB. Note for the Mac
+path: mlx-lm cannot convert this architecture, so prepare_mlx_model.py keeps
+a Qwen2.5 default.
 
-`Qwen/Qwen3.5-9B` is a viable alternative (the local runs used its 0.8B
-sibling; the LoRA target superset and tied-embedding handling cover the
-hybrid architecture) — but on CUDA install `flash-linear-attention` and
-`causal-conv1d` first, or its linear-attention layers fall back to a slow
-torch path.
+`Qwen/Qwen2.5-7B-Instruct` (`config.QWEN25_BASE_MODEL`) is the tested
+plain-attention alternative — untied embeddings, ~double the trainable
+footprint, no extra kernel dependencies. `Qwen/Qwen3.5-9B` also works under
+the same hybrid-architecture caveats as the 4B.
 
 `meta-llama/Meta-Llama-3.1-8B-Instruct` is gated. Its metadata reads fine for
 anyone, but downloading weights returns 403 without an approved access request,
