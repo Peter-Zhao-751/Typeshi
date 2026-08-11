@@ -185,9 +185,17 @@ This is the ceiling: if the corpus does not encode QWERTY, the model cannot.
    assumptions true, and both are pinned by tests.
 3. **Same-finger handling**, two variants, always reported side by side:
    - **Blind** (uses no ground truth): same-finger pairs are *detected* as the
-     high-positive-residual outliers of the interaction matrix, and that
-     detected set is regressed out before reconstruction. The detection is
-     itself scored against truth (§6 level 2), so this stays non-circular.
+     high-positive-residual outliers of the interaction matrix — median + 2·MAD,
+     the standard robust upper-tail rule — and that detected set is regressed
+     out before reconstruction. The detection is itself scored against truth
+     (§6 level 2), so this stays non-circular.
+
+     A two-component Gaussian mixture was specified first and measured much
+     worse: ρ=0.58, flagging ~140 pairs against 41 true ones. Only 12% of the
+     351 unordered pairs are same-finger, and a minority bump that small does
+     not split a broad continuous residual into two clean Gaussians — the
+     mixture cuts the bulk roughly in half. The MAD rule lands at 44
+     detections (precision 0.77, recall 0.82) without being told the count.
    - **Finger-aware** (uses ground truth): regress out the true same-finger
      indicator. Diagnostic only — it answers "is the geometry there once the
      biomechanical confound is accounted for", and must be labelled as
@@ -230,6 +238,22 @@ Three levels, so partial structure is still a result.
    validates the blind pipeline's step 3).
 3. **Full geometry** — Spearman correlation of pairwise distances, mean position
    error in key-widths, nearest-neighbour recall, each with the permutation test.
+
+### 6a. What the pipeline can deliver, measured
+
+Established on the synthetic matrix before any model was loaded, and the
+numbers every model result gets read against:
+
+| quantity | measured | meaning |
+|---|---|---|
+| ceiling, true distances fed straight in | ρ = 0.97 | the most MDS + Procrustes can return |
+| finger-aware reconstruction | ρ = 0.89–0.90, error 0.77u | geometry is recoverable once the biomechanical confound is accounted for — **uses ground truth** |
+| blind reconstruction | ρ = 0.80–0.85 | the price of using no ground truth at all |
+| same-finger AUC | 0.98 | **the strong claim**: the residual ranks same-finger pairs to the top |
+
+The AUC is the result that carries the evidence — it needs no MDS, no
+alignment, and no threshold. The blind 2D map is the weakest of the three and
+should be presented as such.
 
 Output per run: a metrics JSON alongside the existing `eval_*.json` convention,
 and a figure.
