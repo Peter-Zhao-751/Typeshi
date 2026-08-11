@@ -130,7 +130,34 @@ wrong reason. Training copies `split.json` into the checkpoint directory and
 the eval prefers that bound copy, so a later dataset rebuild cannot swap the
 held-out writers under an existing checkpoint.
 
-## 6. Bring back
+## 6a. No-SSH workflow (Lambda web terminal)
+
+Everything above works identically in Lambda's browser terminal — it is just
+a shell. Two adjustments:
+
+- **Start tmux immediately** (`tmux new -s typeshi`). A browser tab that
+  closes or refreshes kills its shell; tmux keeps training alive, and
+  `tmux attach -t typeshi` from a fresh tab resumes exactly where you were.
+- **Results leave via the network, not rsync.** The Mac cannot pull from a
+  box it cannot SSH into, so push instead, from the box:
+
+  ```bash
+  # small artifacts (eval report, logs, notes) -> git
+  git checkout -b gpu-results
+  git add -f eval_report.json logs/train-gpu.log
+  git commit -m "results: GPU run"
+  git push -u origin gpu-results
+
+  # the checkpoint (GBs) -> a private Hugging Face repo
+  hf auth login                # paste a WRITE token from hf.co/settings/tokens
+  hf upload <your-hf-username>/typeshi-motor checkpoints/motor . --private
+  ```
+
+  Back on the Mac: `git pull` for the report, `hf download` for the weights.
+  (Lambda persistent filesystems also work for parking the checkpoint
+  between instances, but they do not get files to your Mac by themselves.)
+
+## 6b. Bring back (SSH variant)
 
 ```bash
 mkdir -p checkpoints   # gitignored, so absent on a fresh clone
