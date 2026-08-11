@@ -86,7 +86,31 @@ def test_split_is_by_writer_and_deterministic():
     train_b, test_b = split_by_writer(writers, test_frac=0.1, seed=0)
     assert (train_a, test_a) == (train_b, test_b)
     assert not (train_a & test_a)
-    assert len(test_a) == 10
+    assert train_a | test_a == set(writers)
+    # Writers are assigned independently so the split stays stable under
+    # subsetting, which makes the test fraction statistical, not exact. On 100
+    # writers that is a loose band; at corpus scale it converges tightly.
+    assert 3 <= len(test_a) <= 20
+
+
+def test_split_is_stable_under_subsetting():
+    """A subset build and a full build must agree on every shared writer.
+
+    The corpus is built at several sizes via --limit-aalto. If the holdout
+    depended on which writers were present, a writer held out of the subset run
+    could sit in the full run's training set, and the two checkpoints' Tier-1
+    numbers would not be comparable.
+    """
+    full = [f"w{i}" for i in range(1000)]
+    subset = [f"w{i}" for i in range(0, 1000, 3)]
+
+    _, full_test = split_by_writer(full, test_frac=0.1, seed=0)
+    subset_train, subset_test = split_by_writer(subset, test_frac=0.1, seed=0)
+
+    for writer in subset:
+        assert (writer in subset_test) == (writer in full_test)
+    assert subset_test  # a vacuous split would satisfy the loop above
+    assert subset_train
 
 
 def test_split_changes_with_seed():
