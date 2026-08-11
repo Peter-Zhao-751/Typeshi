@@ -136,12 +136,12 @@ marginal statistics, identical by construction.
 
 The real reason the gate cannot pass: long pauses are rare in Aalto
 transcription (short single sentences), so per-session burst run-lengths are
-near-degenerate — usually one burst covering the whole session (only 38 of
-120 held-out sessions, 32%, have even one pause > 1000 ms and therefore a
-burst split at all) — and **lag-1 log-IKI autocorrelation of real Aalto
-sessions is +0.009**, i.e. zero (verified). Between them the order-sensitive
-features carry almost no per-session signal, so the gate is unpassable
-regardless of model.
+near-degenerate — usually one burst covering the whole session. Measured
+directly: shuffling changes the burst features in only **38 of 120 sessions
+(32%)**, so in the other 68% those seven features are shuffle-invariant too.
+And **lag-1 log-IKI autocorrelation of real Aalto sessions is +0.009**, i.e.
+zero. Between them the order-sensitive features carry almost no per-session
+signal, so the gate is unpassable regardless of model.
 
 **This affects the Phase-1 GPU eval identically.** Closing it needs
 order-sensitive features that actually carry signal and burst run-length
