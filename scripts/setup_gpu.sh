@@ -15,9 +15,21 @@ PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 AALTO_URL="https://userinterfaces.aalto.fi/136Mkeystrokes/data/Keystrokes.zip"
 RAW_DIR="data/raw/aalto"
 
+echo "==> base tools (driver-only images may lack curl/unzip)"
+for tool in curl unzip; do
+  command -v "$tool" >/dev/null 2>&1 || sudo apt-get install -y "$tool"
+done
+
 echo "==> GPU check"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || {
   echo "no NVIDIA GPU visible; this script is for a CUDA box" >&2; exit 1; }
+GPU_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
+if [ "${GPU_MB}" -lt 40000 ]; then
+  echo "FATAL: ${GPU_MB} MiB GPU memory; this run needs >=48 GB (40 GB with --freeze-embeddings)" >&2
+  exit 1
+elif [ "${GPU_MB}" -lt 46000 ]; then
+  echo "WARNING: ${GPU_MB} MiB is tight -- expect to need --freeze-embeddings or gradient checkpointing"
+fi
 
 echo "==> uv"
 if ! command -v uv >/dev/null 2>&1; then
