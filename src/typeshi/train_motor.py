@@ -158,6 +158,30 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
     )
 
 
+def _stdout_loss_log():
+    """A callback that prints every log record as one plain line.
+
+    transformers couples log printing to its tqdm progress bar, which drops
+    the per-step dicts when stdout is redirected to a file -- exactly the
+    tee-to-logs/ setup the runbook prescribes and the dashboards parse. Only
+    active when stdout is not a tty, so interactive runs don't see doubles.
+    """
+    import sys
+
+    from transformers import TrainerCallback
+
+    class StdoutLossLog(TrainerCallback):
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if logs and not sys.stdout.isatty():
+                line = {
+                    k: f"{v:.4}" if isinstance(v, float) else v
+                    for k, v in logs.items()
+                }
+                print(line, flush=True)
+
+    return StdoutLossLog()
+
+
 def main() -> None:
     import torch
     from datasets import load_dataset
@@ -241,6 +265,7 @@ def main() -> None:
         model=model,
         train_dataset=ds,
         processing_class=tok,
+        callbacks=[_stdout_loss_log()],
         args=SFTConfig(
             output_dir=str(args.out),
             num_train_epochs=args.epochs,
