@@ -202,6 +202,16 @@ def main() -> None:
                     help="train only on examples whose prompt carries this mode token")
     ap.add_argument("--seed", type=int, default=config.DEFAULT_SEED)
     ap.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="resume from a trainer checkpoint dir (checkpoint-N); restores "
+             "model, optimizer, scheduler, and RNG, then trains on toward "
+             "--epochs. The LR schedule is recomputed over the NEW horizon, "
+             "so extending a finished run re-warms from the schedule's "
+             "mid-point rather than continuing the old decay",
+    )
+    ap.add_argument(
         "--freeze-embeddings",
         action="store_true",
         help="do not train the embedding table or output head; saves ~13 GB at "
@@ -280,7 +290,9 @@ def main() -> None:
             max_length=2048,
         ),
     )
-    trainer.train()
+    trainer.train(
+        resume_from_checkpoint=str(args.resume) if args.resume else None
+    )
     trainer.save_model(str(args.out))
     tok.save_pretrained(str(args.out))
 
