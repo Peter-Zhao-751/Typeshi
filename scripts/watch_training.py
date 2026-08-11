@@ -1,14 +1,17 @@
 """Live training dashboard. Leave it running in its own terminal tab:
 
-    uv run python scripts/watch_training.py
+    uv run python scripts/watch_training.py  # newest training log automatically
+    uv run python scripts/watch_training.py logs/tiny_full.log  # tonight's run
 
-Tails the newest logs/train-*.log (or a path you pass), refreshing every few
-seconds: step/ETA from the progress bar, loss trajectory with a sparkline,
-token accuracy, and a loud banner if the process dies or the log goes stale.
+Tails the newest training log (or a path you pass), refreshing every few seconds:
+step/ETA from the progress bar, loss trajectory with a sparkline, token accuracy,
+and a loud banner if the process dies or the log goes stale.
 """
 
 from __future__ import annotations
 
+import json
+import math
 import re
 import subprocess
 import sys
@@ -18,7 +21,10 @@ from pathlib import Path
 
 REFRESH_S = 10
 BARS = "▁▂▃▄▅▆▇█"
-STEP_RE = re.compile(r"(\d+)%\|.*?\| (\d+)/(\d+) \[([\d:]+)<([\d:?]+), *([\d.]+)s/it\]")
+STEP_RE = re.compile(
+    r"(\d+)%\|.*?\| (\d+)/(\d+) \[([\d:]+)<([\d:?]+), *"
+    r"([\d.]+)(s/it|it/s)\]"
+)
 LOSS_RE = re.compile(
     r"\{'loss': '([\d.]+)'.*?'entropy': '([\d.]+)'.*?"
     r"'mean_token_accuracy': '([\d.eE+-]+)', 'epoch': '([\d.]+)'\}"
@@ -26,9 +32,17 @@ LOSS_RE = re.compile(
 
 
 def newest_log() -> Path:
-    logs = sorted(Path("logs").glob("train-*.log"), key=lambda p: p.stat().st_mtime)
+    logs = []
+    for path in Path("logs").glob("*.log"):
+        try:
+            raw = path.read_text(errors="replace").replace("\r", "\n")
+        except OSError:
+            continue
+        if STEP_RE.search(raw) or "{'loss':" in raw:
+            logs.append(path)
+    logs.sort(key=lambda p: p.stat().st_mtime)
     if not logs:
-        sys.exit("no logs/train-*.log found")
+        sys.exit("no training logs found in logs/*.log")
     return logs[-1]
 
 
@@ -41,14 +55,53 @@ def sparkline(values: list[float], width: int = 40) -> str:
     return "".join(BARS[int((v - lo) / span * (len(BARS) - 1))] for v in values)
 
 
+def checkpoint_probes() -> list[dict[str, object]]:
+    path = Path("logs/checkpoint_probes.jsonl")
+    if not path.exists():
+        return []
+    rows = []
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def numeric(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value = float(value)
+        if math.isfinite(value):
+            return value
+    return None
+
+
+def count(value: object) -> str:
+    value = numeric(value)
+    return str(int(value)) if value is not None else "?"
+
+
+def metric(value: object) -> str:
+    value = numeric(value)
+    return f"{value:.3f}" if value is not None else "n/a"
+
+
 def render(path: Path) -> None:
     raw = path.read_text(errors="replace").replace("\r", "\n")
     losses = LOSS_RE.findall(raw)
     steps = STEP_RE.findall(raw)
-    alive = bool(subprocess.run(
-        ["pgrep", "-f", "typeshi.train_motor"], capture_output=True
-    ).stdout.strip())
+    probes = checkpoint_probes()
+    process = subprocess.run(
+        ["pgrep", "-f", "typeshi.train_"], capture_output=True
+    )
     stale_s = time.time() - path.stat().st_mtime
+    alive = bool(process.stdout.strip()) or (process.returncode > 1 and stale_s <= 120)
 
     print("\x1b[2J\x1b[H", end="")  # clear screen, home cursor
     print(f"┏━━ TYPESHI TRAINING ━━ {path.name} ━━ {datetime.now():%H:%M:%S} ━━┓")
@@ -63,11 +116,12 @@ def render(path: Path) -> None:
         print("┃  🟢 running")
 
     if steps:
-        pct, step, total, elapsed, eta, rate = steps[-1]
+        pct, step, total, elapsed, eta, rate, unit = steps[-1]
+        seconds_per_step = float(rate) if unit == "s/it" else 1 / float(rate)
         filled = int(int(pct) / 100 * 30)
         print(f"┃  [{'█' * filled}{'░' * (30 - filled)}] {pct}%  "
               f"step {step}/{total}")
-        print(f"┃  elapsed {elapsed}   eta {eta}   {rate}s/step")
+        print(f"┃  elapsed {elapsed}   eta {eta}   {seconds_per_step:.2f}s/step")
 
     if losses:
         vals = [float(l) for l, _, _, _ in losses]
@@ -78,6 +132,29 @@ def render(path: Path) -> None:
               f"token-acc {float(acc) * 100:.1f}%")
         recent = vals[-6:]
         print(f"┃  last 6: {'  '.join(f'{v:.3f}' for v in recent)}")
+
+    if probes:
+        latest = probes[-1]
+        checkpoint = latest.get("checkpoint")
+        checkpoint = checkpoint if isinstance(checkpoint, str) else "unknown"
+        similarities = [
+            value for row in probes
+            if (value := numeric(row.get("sim_median"))) is not None
+        ]
+        similarity_spark = sparkline(similarities)
+        if len(similarities) == 1:
+            similarity_spark = BARS[0]
+        history = " ".join(
+            f"{count(row.get('valid'))}/{count(row.get('n'))}" for row in probes
+        )
+        print("┃")
+        print("┃  checkpoint probes")
+        print(f"┃  {checkpoint}   valid {count(latest.get('valid'))}/"
+              f"{count(latest.get('n'))}   sim-median "
+              f"{metric(latest.get('sim_median'))}   space-ratio "
+              f"{metric(latest.get('space_ratio_mean'))}")
+        print(f"┃  sim history: {similarity_spark}")
+        print(f"┃  valid/n: {history}")
 
     for bad in ("Traceback", "out of memory", "Killed"):
         if bad in raw:
