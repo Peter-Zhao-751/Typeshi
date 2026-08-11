@@ -35,3 +35,53 @@ def test_routes_plain_when_no_adapter_config(tmp_path, monkeypatch):
     )
     assert load_checkpoint_model(tmp_path, BACKEND) == "plain-model"
     assert calls == [("plain", tmp_path)]
+
+
+def _tiny_checkpoint_dir(tmp_path):
+    """A minimal tiny-PoC checkpoint: our tokenizer + a qwen2 model config.
+    The config.json is what springs the trap: AutoTokenizer cannot resolve
+    the saved TokenizersBackend class name and falls back to model_type
+    'qwen2', whose byte-level space handling eats every literal space."""
+    import json
+
+    from typeshi.tiny_tokenizer import build_tiny_tokenizer
+
+    build_tiny_tokenizer().save_pretrained(tmp_path)
+    (tmp_path / "config.json").write_text(json.dumps({
+        "model_type": "qwen2", "architectures": ["Qwen2ForCausalLM"],
+        "vocab_size": 12909,
+    }))
+    return tmp_path
+
+
+def test_checkpoint_tokenizer_preserves_spaces(tmp_path):
+    from typeshi.eval.load import load_checkpoint_tokenizer
+
+    tok = load_checkpoint_tokenizer(_tiny_checkpoint_dir(tmp_path))
+    prompt = "<TARGET>a b c<PROCESS>"
+    ids = tok(prompt, add_special_tokens=False)["input_ids"]
+    assert tok.decode(ids, skip_special_tokens=False) == prompt
+
+
+def test_checkpoint_tokenizer_guard_is_loud(tmp_path, monkeypatch):
+    """If the loaded tokenizer mangles the probe, the eval must die loudly,
+    never degrade into wrong-text rejections (that cost a full pilot cycle)."""
+    import typeshi.eval.load as load_mod
+    from typeshi.eval.load import load_checkpoint_tokenizer
+
+    class Mangling:
+        eos_token_id = 0
+        pad_token_id = 1
+
+        def __call__(self, text, **kw):
+            return {"input_ids": [0]}
+
+        def decode(self, ids, **kw):
+            return "mangled"
+
+    d = _tiny_checkpoint_dir(tmp_path)
+    monkeypatch.setattr(
+        load_mod, "_load_raw_tokenizer", lambda checkpoint: Mangling()
+    )
+    with pytest.raises(SystemExit):
+        load_checkpoint_tokenizer(d)

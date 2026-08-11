@@ -165,15 +165,14 @@ def main() -> None:
     args = ap.parse_args()
 
     import torch
-    from transformers import AutoTokenizer
 
-    from typeshi.eval.load import load_checkpoint_model
+    from typeshi.eval.load import load_checkpoint_model, load_checkpoint_tokenizer
     from typeshi.train_motor import _detect_backend
 
     # Same placement rules as training: device_map="auto" on MPS aborts for
     # hybrid-attention architectures, so load on CPU there and move after.
     backend = _detect_backend()
-    tok = AutoTokenizer.from_pretrained(args.checkpoint)
+    tok = load_checkpoint_tokenizer(args.checkpoint)
     model = load_checkpoint_model(args.checkpoint, backend)
     if backend["device_map"] is None and torch.backends.mps.is_available():
         model = model.to("mps")

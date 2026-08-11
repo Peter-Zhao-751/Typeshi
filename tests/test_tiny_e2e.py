@@ -38,18 +38,26 @@ def test_train_reload_generate_terminate(tmp_path, monkeypatch):
     out = tmp_path / "ckpt"
     from typeshi import train_tiny
 
+    # epochs=1 (100 steps) plateaus around 50-60% teacher-forced accuracy on
+    # this machine -- nowhere near memorized, and the replay-similarity
+    # assertion below needs actual memorization to be a meaningful check.
+    # A convergence probe with this same fix showed accuracy=1.0 and
+    # similarity=1.0 by ~6 epochs (~600 steps), so raise epochs here rather
+    # than let the new assertion be flaky on the amount of training.
     monkeypatch.setattr(sys, "argv", [
         "train_tiny", "--data", str(train_file), "--out", str(out),
-        "--config", "smoke", "--epochs", "1", "--batch", "8", "--accum", "1",
+        "--config", "smoke", "--epochs", "6", "--batch", "8", "--accum", "1",
         "--lr", "1e-2",
     ])
     train_tiny.main()
 
     # Reload EXACTLY as run_eval.py does: from disk, via the auto classes.
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM
 
-    tok = AutoTokenizer.from_pretrained(out)
+    from typeshi.eval.load import load_checkpoint_tokenizer
+
+    tok = load_checkpoint_tokenizer(out)
     model = AutoModelForCausalLM.from_pretrained(out, dtype=torch.float32)
     model.eval()
 
@@ -62,3 +70,14 @@ def test_train_reload_generate_terminate(tmp_path, monkeypatch):
     # Termination proof: generation stops only on EOS or budget exhaustion.
     # A full-budget stream is ~budget/2 events; well under that means EOS.
     assert 2 * len(gen) + 2 < budget, "burned the whole budget -- EOS never came"
+
+    from typeshi.buffer import replay
+    from typeshi.labels import _levenshtein
+
+    produced = replay(gen)
+    similarity = 1 - _levenshtein(produced, target) / max(len(target), 1)
+    assert similarity >= 0.9, (
+        f"overfit model replayed {produced!r} vs target {target!r} "
+        f"(sim {similarity:.2f}) -- an encode-side tokenizer corruption "
+        "shows up exactly here"
+    )
