@@ -69,12 +69,16 @@ class TranscriptionGrammarProcessor:
                 torch.cat([self.event_ids, self.eos_ids]).to(device)
                 if self.eos_ids.numel() else self._event
             )
-        return self._dt, self._event, self._event_eos
+            self._dt_eos = (
+                torch.cat([self.dt_ids, self.eos_ids]).to(device)
+                if self.eos_ids.numel() else self._dt
+            )
+        return self._dt, self._event, self._event_eos, self._dt_eos
 
     def __call__(self, input_ids, scores):
         import torch
 
-        dt, event, event_eos = self._cached(scores.device)
+        dt, event, event_eos, dt_eos = self._cached(scores.device)
         generated = input_ids.shape[1] - self.prompt_len
         mask = torch.full_like(scores, float("-inf"))
         if generated % 2 == 0:
@@ -86,9 +90,7 @@ class TranscriptionGrammarProcessor:
             # the mask must allow what training taught -- a from-scratch model
             # has no pretrained prior to terminate from anywhere else. The
             # stream then ends event-then-EOS with no dangling <DT:>.
-            allowed = self.dt_ids
-            if self.eos_ids.numel():
-                allowed = torch.cat([allowed, self.eos_ids])
+            allowed = dt_eos
         mask[:, allowed] = 0
         return scores + mask
 
