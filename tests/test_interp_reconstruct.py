@@ -106,3 +106,40 @@ def test_permutation_test_rejects_a_random_labelling():
     rng = np.random.default_rng(1)
     noise = rng.normal(0, 3.0, truth.shape)
     assert reconstruct.permutation_p(noise, truth, n=200, seed=0) > 0.05
+
+
+def test_blind_detector_finds_planted_same_finger_pairs():
+    # No ground truth reaches the detector -- it sees only the residual.
+    latency = reconstruct.synthetic_latency(seed=0)
+    sym = reconstruct.to_log_symmetric(latency)
+    residual, _, _, _ = reconstruct.double_center(sym)
+    truth_mask = reconstruct.true_same_finger()
+    # The AUC is the strong claim: the residual RANKS same-finger pairs to the
+    # top. Where the detector cuts that ranking is a separate, weaker question.
+    assert reconstruct.same_finger_auc(residual, truth_mask) > 0.9
+    detected = reconstruct.detect_same_finger(residual)
+    assert detected.shape == (27, 27)
+    assert (detected == detected.T).all()   # symmetric, like the residual
+    # Calibration without being told the count: 41 of the 351 unordered pairs
+    # are truly same-finger, and the rule must land in that neighbourhood
+    # rather than flagging the whole upper half of the distribution.
+    upper = np.triu_indices(27, k=1)
+    assert 25 <= detected[upper].sum() <= 70
+
+
+def test_both_modes_reconstruct_the_synthetic_keyboard():
+    latency = reconstruct.synthetic_latency(seed=0)
+    blind = reconstruct.reconstruct(latency, mode="blind", seed=0)
+    aware = reconstruct.reconstruct(latency, mode="finger_aware", seed=0)
+    # Blind measures 0.797-0.851 across seeds against finger-aware's
+    # 0.893-0.904 -- the price of using no ground truth, recorded rather than
+    # wished away. The bar sits below the observed minimum with margin.
+    assert blind["metrics"]["distance_spearman"] > 0.75
+    assert aware["metrics"]["distance_spearman"] > 0.85
+    # Ground truth can only help; if blind beats aware something is wrong.
+    assert aware["metrics"]["distance_spearman"] > blind["metrics"]["distance_spearman"]
+
+
+def test_unknown_mode_is_refused():
+    with pytest.raises(ValueError, match="mode"):
+        reconstruct.reconstruct(reconstruct.synthetic_latency(), mode="magic")

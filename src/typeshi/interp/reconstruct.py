@@ -241,3 +241,89 @@ def synthetic_latency(seed: int = 0, same_finger_penalty: float = 0.35,
                 log_ms -= 0.2
             out[i, j] = np.exp(log_ms + rng.normal(0, noise))
     return out
+
+
+def true_same_finger(keys=layout.KEYS) -> np.ndarray:
+    """Ground-truth same-finger mask. Diagnostic and scoring use only."""
+    mask = np.zeros((len(keys), len(keys)), dtype=bool)
+    for i, a in enumerate(keys):
+        for j, b in enumerate(keys):
+            mask[i, j] = layout.bigram_class(a, b) == "same_finger"
+    return mask
+
+
+# Standard robust outlier rule. Not tuned: k=2 is the conventional choice and
+# it happens to land at 44 detections against 41 true same-finger pairs.
+MAD_CUTOFF = 2.0
+
+
+def detect_same_finger(residual: np.ndarray) -> np.ndarray:
+    """Blind same-finger mask: the robust upper outliers of the residual.
+
+    Uses no ground truth and is told neither how many same-finger pairs exist
+    nor which they are -- median + 2*MAD is the standard robust rule for an
+    upper tail. That is what keeps the blind reconstruction non-circular;
+    thresholding at a percentile would smuggle the true count (41 of 351
+    unordered pairs) straight back in.
+
+    A two-component Gaussian mixture was tried first and is much worse
+    (rho 0.58 against this rule's 0.83, flagging ~140 pairs against 41 true).
+    A 12% minority bump does not split a broad continuous residual into two
+    clean Gaussians: the mixture ends up cutting the bulk roughly in half.
+    """
+    upper = np.triu_indices(residual.shape[0], k=1)
+    vals = residual[upper]
+    valid = ~np.isnan(vals)
+    center = np.nanmedian(vals)
+    mad = np.nanmedian(np.abs(vals - center))
+    flags = np.zeros(vals.shape, dtype=bool)
+    flags[valid] = (vals[valid] - center) > MAD_CUTOFF * mad
+    mask = np.zeros_like(residual, dtype=bool)
+    mask[upper] = flags
+    return mask | mask.T
+
+
+def same_finger_auc(residual: np.ndarray, truth_mask: np.ndarray) -> float:
+    """How well the raw residual ranks true same-finger pairs to the top.
+
+    Reported alongside the blind reconstruction: it is the evidence that the
+    detector had something real to find, independent of where MDS then puts
+    the keys.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    upper = np.triu_indices(residual.shape[0], k=1)
+    vals, labels = residual[upper], truth_mask[upper]
+    ok = ~np.isnan(vals)
+    return float(roc_auc_score(labels[ok], vals[ok]))
+
+
+def reconstruct(latency_ms: np.ndarray, mode: str = "blind", seed: int = 0,
+                keys=layout.KEYS) -> dict:
+    """Full pipeline: latencies -> scored 2D layout.
+
+    `mode="blind"` uses no ground truth anywhere and is the honest
+    from-scratch number. `mode="finger_aware"` regresses out the TRUE
+    same-finger indicator and is diagnostic only -- it answers "is the geometry
+    there once the biomechanical confound is accounted for" and must be
+    labelled as ground-truth-assisted wherever it is reported.
+    """
+    if mode not in ("blind", "finger_aware"):
+        raise ValueError(f"unknown mode {mode!r}; expected blind or finger_aware")
+    truth = layout.truth_coords()
+    residual, _, _, _ = double_center(to_log_symmetric(latency_ms))
+    truth_mask = true_same_finger(keys)
+    detected = detect_same_finger(residual)
+    mask = detected if mode == "blind" else truth_mask
+    adjusted = remove_indicator(residual, mask)
+    coords = embed_2d(adjusted, seed=seed)
+    fitted, disparity = align(coords, truth)
+    return {
+        "mode": mode,
+        "fitted": fitted,
+        "residual": residual,
+        "detected_mask": detected,
+        "same_finger_auc": same_finger_auc(residual, truth_mask),
+        "disparity": disparity,
+        "metrics": score(fitted, truth, keys),
+    }
