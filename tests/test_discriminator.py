@@ -128,6 +128,40 @@ def test_serial_features_stay_near_chance_on_exchangeable_sessions():
     assert acc < 0.65
 
 
+def test_codec_comb_separates_identical_timing_until_both_sides_roundtrip():
+    """Why run_eval projects real sessions through the codec before scoring.
+
+    Two batches from the SAME generator, one passed through the serializer's
+    128-bin timing grid: the discriminator separates them on quantization
+    alone, though their motor behaviour is identical by construction. After
+    projecting both sides, that separation collapses. Without the projection,
+    pass_model gates the codec -- unpassable for any model emitting tokens.
+    """
+    from typeshi.serialize import codec_roundtrip
+
+    rng = np.random.default_rng(0)
+    continuous = [_humanlike_session(rng, n=150) for _ in range(60)]
+    quantized = [codec_roundtrip(_humanlike_session(rng, n=150)) for _ in range(60)]
+
+    _, comb_acc = train_discriminator(continuous, quantized, paired=False, seed=0)
+    both = [codec_roundtrip(s) for s in continuous]
+    _, fair_acc = train_discriminator(both, quantized, paired=False, seed=0)
+
+    assert comb_acc > 0.75, "the comb alone should separate"
+    assert fair_acc < 0.65, "projected onto the same grid, it should not"
+
+
+def test_codec_roundtrip_is_idempotent():
+    from typeshi.serialize import codec_roundtrip
+
+    rng = np.random.default_rng(0)
+    once = codec_roundtrip(_humanlike_session(rng, n=80))
+    twice = codec_roundtrip(once)
+    assert [(e.press_time, e.release_time) for e in once] == [
+        (e.press_time, e.release_time) for e in twice
+    ]
+
+
 def test_discriminator_cannot_separate_identical_distributions():
     """Sanity check: same generator on both sides -> chance accuracy."""
     rng = np.random.default_rng(0)

@@ -37,6 +37,7 @@ from typeshi.eval.discriminator import (
 from typeshi.eval.distributional import compare_sessions
 from typeshi.generate import generate
 from typeshi.labels import _levenshtein, compute_labels
+from typeshi.serialize import codec_roundtrip
 
 PASS_MODEL_MAX = 0.55
 PASS_MODEL_MIN = 0.40          # below-chance = leakage, never realism
@@ -256,6 +257,20 @@ def main() -> None:
         print(payload)
         return
 
+    # Every session is projected onto the codec's timing grid before scoring.
+    # Generated sessions are born there (they decode from tokens); raw corpus
+    # sessions are not, and that alone separates them: real holds take
+    # hundreds of distinct ms values, decoded ones ~40 bin centers, and a
+    # GBM reads the comb -- measured 0.8275 paired CV against raw real
+    # falling to 0.6200 against roundtripped real, with 0.438 of the
+    # importance on one hold quantile. A model emitting tokens can never
+    # beat the raw-real comparison, so it would gate the codec, not the
+    # model. The raw number is still reported below for transparency.
+    _, acc_model_raw_real = train_discriminator(real, fake, paired=True)
+    real = [codec_roundtrip(s) for s in real]
+    fake = [codec_roundtrip(s) for s in fake]  # idempotent, kept uniform
+    baseline = [codec_roundtrip(s) for s in baseline]
+
     # All comparisons against generations/baselines are PAIRED (same targets).
     _, acc_model = train_discriminator(real, fake, paired=True)
     _, acc_model_timing = train_discriminator(
@@ -284,8 +299,10 @@ def main() -> None:
         "held_out_writers_only": test_writers is not None,
         "temperature": args.temperature,
         "constrained_decoding": not args.unconstrained,
+        "codec_roundtripped_real": True,
         "distributional": compare_sessions(real, fake),
         "discriminator_accuracy_vs_model": acc_model,
+        "discriminator_accuracy_vs_model_raw_real": acc_model_raw_real,
         "discriminator_accuracy_vs_model_timing_only": acc_model_timing,
         "discriminator_accuracy_vs_heuristic_baseline": acc_baseline,
         "discriminator_accuracy_vs_shuffled_real": acc_shuffled,
