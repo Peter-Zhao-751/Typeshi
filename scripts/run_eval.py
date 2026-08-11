@@ -52,6 +52,7 @@ PASS_SHUFFLE_TEETH_MIN = 0.75  # serial-dependence sensitivity
 PASS_VALID_MIN = 0.90
 CONTROL_BAND = (0.40, 0.60)
 REPLAY_SIM_MIN = 0.80
+MIN_PAIRS = 5  # StratifiedGroupKFold(n_splits=5) needs 5 members per class
 
 
 def load_test_writers(split_path: Path, allow_unsplit: bool) -> set[str] | None:
@@ -249,13 +250,13 @@ def main() -> None:
 
     success_rate = len(real) / attempts if attempts else 0.0
 
-    if not real:
-        # Zero valid generations is a RESULT, not an error: report it with
-        # every gate failed rather than discarding the attempt statistics.
+    if len(real) < MIN_PAIRS:
+        # Fewer than MIN_PAIRS valid generations: report honestly without
+        # running the discriminator (StratifiedGroupKFold needs 5 members per class).
         report = {
-            "sessions_scored": 0,
+            "sessions_scored": len(real),
             "generation_attempts": attempts,
-            "generation_success_rate": 0.0,
+            "generation_success_rate": success_rate,
             "generations_rejected_as_malformed": rejected_malformed,
             "generations_rejected_wrong_text": rejected_wrong_text,
             "sessions_skipped_not_held_out": skipped_train_writer,
@@ -266,10 +267,13 @@ def main() -> None:
             "pass_discriminator_has_teeth": False,
             "pass_serial_dependence_teeth": False,
             "pass_model": False,
-            "pass_generation_validity": False,
+            "pass_generation_validity": success_rate >= PASS_VALID_MIN,
             "pass_control_near_chance": False,
             "tier1_met": False,
-            "note": "no valid generations; discriminator metrics not computable",
+            "note": (
+                f"only {len(real)} valid generation(s); discriminator metrics "
+                f"need at least {MIN_PAIRS} pairs and were not computed"
+            ),
         }
         payload = json.dumps(jsonable(report), indent=2)
         args.out.write_text(payload)
