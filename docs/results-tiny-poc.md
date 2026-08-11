@@ -117,23 +117,41 @@ document is post-fix. **The 0.8B's 0.77 was substantially this artifact.**
 
 `pass_serial_dependence_teeth` asks the discriminator to separate real
 sessions from timing-shuffled real sessions (≥ 0.75). Measured on 120
-held-out sessions:
+held-out sessions (`scripts/shuffle_diagnostic.py --n 120`,
+`shuffle_diagnostic.json`):
 
 | input | real-vs-shuffled |
 |---|---|
 | raw milliseconds | 0.542 |
 | round-tripped | 0.483 |
 
-Neither is close, and the fix in §5.1 is not the cause. The reason is in the
-features: **lag-1 log-IKI autocorrelation of real Aalto sessions is +0.009**,
-i.e. zero. That single order-sensitive number is the only one of 33 features
-that shuffling can change — the other 32 are marginal statistics, identical by
-construction. The gate is therefore unpassable regardless of model.
+Neither is close, and the fix in §5.1 is not the cause. **8 of `featurize`'s
+33 features are order-sensitive, not 1**: the 7 burst-block stats (5
+quantiles + mean + std of run lengths, indices 24–30 — `distributional.py`
+already splits bursts on any inter-key gap > 1000 ms) plus lag-1 log-IKI
+autocorrelation. Shuffling moves where those pauses fall, so it moves burst
+run-lengths too; the burst *count* alone is invariant, since permuting gaps
+doesn't change how many exceed the threshold. The other 25 features are
+marginal statistics, identical by construction.
+
+The real reason the gate cannot pass: long pauses are rare in Aalto
+transcription (short single sentences), so per-session burst run-lengths are
+near-degenerate — usually one burst covering the whole session (only 38 of
+120 held-out sessions, 32%, have even one pause > 1000 ms and therefore a
+burst split at all) — and **lag-1 log-IKI autocorrelation of real Aalto
+sessions is +0.009**, i.e. zero (verified). Between them the order-sensitive
+features carry almost no per-session signal, so the gate is unpassable
+regardless of model.
 
 **This affects the Phase-1 GPU eval identically.** Closing it needs
-order-sensitive features that actually carry signal (multi-lag autocorrelation,
-run-length statistics, digraph-conditioned deviations), which is a Phase-1
-task, not a threshold tweak.
+order-sensitive features that actually carry signal and burst run-length
+statistics alone are not enough — they are already implemented
+(`distributional.py`'s burst block, above) and still don't clear the bar.
+Better candidates: multi-lag autocorrelation, digraph-conditioned timing
+deviations, or a sequence model over the raw event stream (the design spec's
+original "Transformer over event streams" discriminator,
+`docs/superpowers/specs/2026-08-09-typing-process-model-design.md` §Discriminator
+Turing test). That's a Phase-1 task, not a threshold tweak.
 
 ## 6. Bugs this PoC found in shared code
 
@@ -183,8 +201,10 @@ exhausted, and the answer is no:
 | 1.20 | 98% | 0.710 | 2.410 |
 | 1.35 | 88% | 0.740 | 1.447 |
 
-Higher temperature degrades realism monotonically — it widens the distribution
-in the wrong places (pause KL 5×) while eroding validity. **T=1.0 is optimal.**
+`model-vs-real` degrades monotonically with higher temperature while validity
+erodes; pause KL does not move monotonically but blows up, peaking at ~5× (T=1.2)
+before falling back at T=1.35. Either way it widens the distribution in the
+wrong places. **T=1.0 is optimal.**
 The remaining timing gap is capacity and training distribution, not sampling
 sharpness.
 

@@ -1,0 +1,10 @@
+{
+  "sessions": 120,
+  "discriminator_accuracy_real_vs_shuffled_raw_ms": 0.5416666666666667,
+  "discriminator_accuracy_real_vs_shuffled_roundtripped": 0.4833333333333333,
+  "mean_lag1_log_iki_autocorr_real": 0.009001288372785302,
+  "mean_lag1_log_iki_autocorr_shuffled": -0.0236879389242934,
+  "burst_features_changed_by_shuffling": 38,
+  "burst_features_changed_fraction": 0.31666666666666665,
+  "interpretation": "8 of featurize()'s 33 features are order-sensitive (the 7 burst-block quantile/mean/std stats plus lag-1 autocorrelation). Long pauses are rare in Aalto transcription sessions (short single sentences), so per-session burst run-lengths are near-degenerate -- usually one burst covering the whole session -- and lag-1 autocorrelation is ~0. Between them the order-sensitive features carry almost no per-session signal, so pass_serial_dependence_teeth (>= 0.75) cannot pass regardless of the generator."
+}
