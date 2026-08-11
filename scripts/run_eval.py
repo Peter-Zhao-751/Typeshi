@@ -266,7 +266,12 @@ def main() -> None:
             "pass_discriminator_has_teeth": False,
             "pass_serial_dependence_teeth": False,
             "pass_model": False,
-            "pass_generation_validity": success_rate >= PASS_VALID_MIN,
+            # Also require the pair count: with too few pairs to score at all
+            # (this branch), a 4/4 success_rate would otherwise read as a
+            # passing gate right next to sessions_scored: 4.
+            "pass_generation_validity": (
+                success_rate >= PASS_VALID_MIN and len(real) >= MIN_PAIRS
+            ),
             "pass_control_near_chance": False,
             "tier1_met": False,
             "note": (

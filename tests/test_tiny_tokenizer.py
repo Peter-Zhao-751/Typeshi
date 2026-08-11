@@ -24,11 +24,25 @@ def fresh():
 
 @pytest.fixture(scope="module")
 def reloaded(fresh, tmp_path_factory):
-    from transformers import AutoTokenizer
+    import json
+
+    from typeshi.eval.load import load_checkpoint_tokenizer
 
     d = tmp_path_factory.mktemp("tiny-tok")
     fresh.save_pretrained(d)
-    return AutoTokenizer.from_pretrained(d)
+    # A real checkpoint directory also has config.json (model_type: "qwen2"),
+    # which hijacks bare AutoTokenizer.from_pretrained() into Qwen2Tokenizer
+    # and silently eats every space (docs/results-tiny-poc.md §6.2) -- write
+    # it here so this fixture reproduces the trap instead of sailing past it.
+    (d / "config.json").write_text(json.dumps({
+        "model_type": "qwen2",
+        "architectures": ["Qwen2ForCausalLM"],
+        "vocab_size": 12_909,
+    }))
+    # load_checkpoint_tokenizer, not bare AutoTokenizer: it's what every real
+    # checkpoint consumer (eval, playground) uses, and it's the only path
+    # that resolves the generic wrapper correctly instead of Qwen2Tokenizer.
+    return load_checkpoint_tokenizer(d)
 
 
 @pytest.fixture(scope="module", params=["fresh", "reloaded"])

@@ -31,17 +31,21 @@ def _supported_chars() -> frozenset[str]:
 
 
 def newest_checkpoint(root: Path) -> Path | None:
-    """The most recently written checkpoint-N under `root`, else `root` itself.
+    """The most recently written save under `root`, by mtime.
 
     Mid-run checkpoints are what makes this fun while training: point it at
-    checkpoints/motor-tiny and it picks up tonight's latest save.
+    checkpoints/motor-tiny and it picks up tonight's latest save. But
+    train_tiny also writes the FINAL model straight to `root` when a run
+    completes, so `root` must compete on mtime alongside the checkpoint-N
+    dirs -- otherwise a finished run's playground silently serves a stale
+    intermediate checkpoint.
     """
     if not root.exists():
         return None
     saves = [p for p in root.glob("checkpoint-*") if (p / "model.safetensors").exists()]
-    if saves:
-        return max(saves, key=lambda p: p.stat().st_mtime)
-    return root if (root / "model.safetensors").exists() else None
+    if (root / "model.safetensors").exists():
+        saves.append(root)
+    return max(saves, key=lambda p: p.stat().st_mtime) if saves else None
 
 
 class Playground:

@@ -7,10 +7,14 @@ spec plans constrained decoding regardless; this is the transcription subset.
 
 The v2 stream grammar for transcription is a two-state machine:
 
-    EVENT state: a <c:h> or <BKSP:h> token (or EOS, once something was typed)
+    EVENT state: a <c:h> or <BKSP:h> token
     GAP state:   a <DT:k> token
 
     EVENT -> GAP -> EVENT -> GAP -> ...
+
+EOS is legal in BOTH states once the stream is non-empty: TRL appends EOS
+directly after the completion's final event token -- i.e. in the GAP slot --
+so the mask must allow that ending too, not just an EOS in EVENT position.
 
 Composition additions (<CUR:>, <SELDEL:>) emit plain-text digits and are NOT
 representable under this mask -- extend the state machine before using it for
