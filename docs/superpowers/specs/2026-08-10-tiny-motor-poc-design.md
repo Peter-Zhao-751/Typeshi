@@ -207,7 +207,8 @@ Staged, each stage a kill-switch for the next:
    writers, same gates, same report JSON.
 
 Hyperparameters (starting points, tuned only if the pilot demands):
-AdamW, lr 6e-4 with 500-step warmup and cosine decay, effective batch 64
+AdamW, lr 6e-4 with warmup_ratio 0.03 and cosine decay (a fixed 500-step
+warmup would consume the entire ~390-step 25k pilot), effective batch 64
 (per-device 16 × accum 4; MPS dispatch overhead dominates small models, so
 per-device size is worth revisiting at the throughput smoke), weight decay
 0.1, grad clip 1.0, seed from `config.DEFAULT_SEED`. fp32 on MPS per
