@@ -203,12 +203,14 @@ This task lands **before any model is loaded**, on purpose. Recovering a known k
 
 **Interfaces:**
 - Consumes: `layout.KEYS`, `layout.truth_coords()`, `layout.bigram_class`.
-- Produces: `to_log_symmetric(latency_ms) -> np.ndarray`, `double_center(m, iters=50) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]`, `embed_2d(residual, seed=0) -> np.ndarray` shape `(27, 2)`, `align(coords, truth) -> tuple[np.ndarray, float]`, `score(fitted, truth) -> dict[str, float]`, `permutation_p(coords, truth, n=500, seed=0) -> float`, `synthetic_latency(seed=0, same_finger_penalty=0.35, noise=0.02) -> np.ndarray`.
+- Produces: `to_log_symmetric(latency_ms) -> np.ndarray`, `_masked_mean(a, axis) -> np.ndarray`, `double_center(m, iters=50) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]`, `embed_2d(residual, seed=0) -> np.ndarray` shape `(27, 2)`, `align(coords, truth) -> tuple[np.ndarray, float]`, `score(fitted, truth) -> dict[str, float]`, `permutation_p(coords, truth, n=500, seed=0) -> float`, `synthetic_latency(seed=0, same_finger_penalty=0.35, noise=0.02) -> np.ndarray`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/test_interp_reconstruct.py
+import warnings
+
 import numpy as np
 import pytest
 from typeshi.interp import layout, reconstruct
@@ -236,6 +238,28 @@ def test_double_center_strips_planted_row_and_column_effects():
     # grand-effect split alone.
     assert np.std(row_eff - row) < 0.1
     assert np.nanstd(residual) < np.nanstd(planted)
+
+
+def test_a_fully_masked_key_does_not_poison_the_other_effects():
+    """A key whose every pairing is masked has no measurable speed of its own.
+
+    Its own effect must come back NaN while the other 26 survive. A plain mean
+    in the grand-splitting step spreads that one NaN across all of them, and
+    warns while doing it -- both of which this test refuses.
+    """
+    rng = np.random.default_rng(0)
+    interaction = rng.normal(0, 0.05, (27, 27))
+    interaction = (interaction + interaction.T) / 2
+    row = rng.normal(0, 0.5, 27)
+    planted = interaction + row[:, None] + row[None, :]
+    np.fill_diagonal(planted, np.nan)
+    planted[5, :] = np.nan
+    planted[:, 5] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # an empty-slice warning fails the test
+        _, row_eff, _, _ = reconstruct.double_center(planted)
+    assert np.isnan(row_eff[5])
+    assert np.isfinite(np.delete(row_eff, 5)).all()
 
 
 def test_pipeline_recovers_a_keyboard_from_a_synthetic_matrix():
@@ -333,6 +357,18 @@ def to_log_symmetric(latency_ms: np.ndarray) -> np.ndarray:
     return sym
 
 
+def _masked_mean(a: np.ndarray, axis: int) -> np.ndarray:
+    """Mean over non-NaN entries, without numpy's empty-slice warning.
+
+    An all-masked row carries no information about that key, so NaN is the
+    correct answer rather than a RuntimeWarning -- and test output has to stay
+    pristine.
+    """
+    total = np.nansum(a, axis=axis)
+    count = np.sum(~np.isnan(a), axis=axis)
+    return np.where(count > 0, total / np.maximum(count, 1), np.nan)
+
+
 def double_center(m: np.ndarray, iters: int = 50):
     """Iterated two-way mean centering -> (residual, row_effect, col_effect, grand).
 
@@ -359,16 +395,19 @@ def double_center(m: np.ndarray, iters: int = 50):
     col = np.zeros(r.shape[1])
     grand = 0.0
     for _ in range(iters):
-        rm = np.nanmean(r, axis=1)
+        rm = _masked_mean(r, axis=1)
         r -= rm[:, None]
         row += rm
-        cm = np.nanmean(r, axis=0)
+        cm = _masked_mean(r, axis=0)
         r -= cm[None, :]
         col += cm
-        g = np.mean(row)
+        # nanmean, not mean: a fully masked key contributes NaN to the
+        # accumulator, and a plain mean would spread that NaN across every
+        # other key's effect on the next subtraction.
+        g = np.nanmean(row)
         row -= g
         grand += g
-        g = np.mean(col)
+        g = np.nanmean(col)
         col -= g
         grand += g
     return r, row, col, grand
@@ -536,7 +575,7 @@ def synthetic_latency(seed: int = 0, same_finger_penalty: float = 0.35,
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_interp_reconstruct.py -v`
-Expected: PASS, 5 tests. Record the actual `distance_spearman` from the synthetic test — it is the pipeline's ceiling and every model number is read against it. Measured during plan revision: ρ ≈ 0.90 ± 0.004 across seeds, position error ≈ 0.74u, against a ceiling of 0.97 when true distances are fed straight in. If it comes in materially below that, the pipeline has a bug; debug it rather than lowering the threshold.
+Expected: PASS, 6 tests. Record the actual `distance_spearman` from the synthetic test — it is the pipeline's ceiling and every model number is read against it. Measured during plan revision: ρ ≈ 0.90 ± 0.004 across seeds, position error ≈ 0.74u, against a ceiling of 0.97 when true distances are fed straight in. If it comes in materially below that, the pipeline has a bug; debug it rather than lowering the threshold.
 
 - [ ] **Step 5: Commit**
 
