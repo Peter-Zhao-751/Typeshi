@@ -1,0 +1,1171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Typeshi — Motor Model Playground</title>
+  <style>
+    :root {
+      --bg: #090c11;
+      --panel: #10151d;
+      --panel-raised: #151b25;
+      --line: #273140;
+      --line-soft: #1d2530;
+      --text: #f5f7fb;
+      --muted: #8792a3;
+      --dim: #505a69;
+      --cyan: #5eead4;
+      --cyan-strong: #2dd4bf;
+      --cyan-ink: #052e2b;
+      --red: #fb7185;
+      --red-bg: #32151d;
+      --amber: #fbbf24;
+      --green: #4ade80;
+      --shadow: rgba(0, 0, 0, 0.34);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 78% -10%, rgba(45, 212, 191, 0.10), transparent 32rem),
+        radial-gradient(circle at -5% 35%, rgba(96, 165, 250, 0.07), transparent 26rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button, input, textarea { font: inherit; }
+
+    button { color: inherit; }
+
+    :focus-visible {
+      outline: 3px solid rgba(94, 234, 212, 0.72);
+      outline-offset: 3px;
+    }
+
+    [hidden] { display: none !important; }
+
+    .shell {
+      width: min(1440px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 22px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--cyan);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.55rem);
+      font-weight: 760;
+      letter-spacing: -0.055em;
+      line-height: 0.95;
+    }
+
+    .intro {
+      max-width: 37rem;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 3px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(16, 21, 29, 0.78);
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--dim);
+      box-shadow: 0 0 0 4px rgba(80, 90, 105, 0.12);
+    }
+
+    .status-pill.ready .status-dot {
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.12);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(21, 27, 37, 0.97), rgba(14, 19, 27, 0.97));
+      box-shadow: 0 22px 50px var(--shadow);
+    }
+
+    .controls {
+      position: sticky;
+      top: 16px;
+      padding: 20px;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .counter, .value {
+      color: var(--cyan);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    textarea, input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #0b1017;
+      color: var(--text);
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    textarea:hover, input[type="number"]:hover { border-color: #39485b; }
+
+    textarea:focus, input[type="number"]:focus {
+      border-color: var(--cyan-strong);
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.10);
+      outline: none;
+    }
+
+    textarea {
+      min-height: 104px;
+      resize: vertical;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    .control-stack {
+      display: grid;
+      gap: 15px;
+      margin-top: 18px;
+    }
+
+    .range-control label, .seed-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 7px;
+      color: #c8d0dc;
+      font-size: 0.81rem;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 5px;
+      margin: 6px 0;
+      border-radius: 999px;
+      background: linear-gradient(to right, var(--cyan-strong) 0 var(--fill, 50%), #2b3441 var(--fill, 50%) 100%);
+      accent-color: var(--cyan-strong);
+      cursor: pointer;
+      appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      width: 17px;
+      height: 17px;
+      border: 3px solid #d7fffa;
+      border-radius: 50%;
+      background: var(--cyan-strong);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      appearance: none;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: 3px solid #d7fffa;
+      border-radius: 50%;
+      background: var(--cyan-strong);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .seed-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    input[type="number"] { padding: 9px 10px; }
+
+    .small-button, .replay-button, .dismiss-button {
+      border: 1px solid var(--line);
+      background: #181f2a;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+
+    .small-button:hover, .replay-button:hover:not(:disabled) {
+      border-color: #425168;
+      background: #202a37;
+    }
+
+    .small-button:active, .replay-button:active:not(:disabled) { transform: translateY(1px); }
+
+    .small-button {
+      border-radius: 9px;
+      padding: 0 12px;
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    .speed-fieldset {
+      min-width: 0;
+      margin: 1px 0 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .speed-fieldset legend {
+      margin-bottom: 8px;
+      color: #c8d0dc;
+      font-size: 0.81rem;
+      font-weight: 700;
+    }
+
+    .speed-options {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    .speed-options input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .speed-options label {
+      padding: 8px 2px;
+      border-right: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 750;
+      text-align: center;
+      cursor: pointer;
+      transition: color 120ms ease, background 120ms ease;
+    }
+
+    .speed-options label:last-child { border-right: 0; }
+
+    .speed-options input:checked + label {
+      background: rgba(45, 212, 191, 0.16);
+      color: var(--cyan);
+    }
+
+    .speed-options input:focus-visible + label {
+      outline: 3px solid rgba(94, 234, 212, 0.72);
+      outline-offset: -3px;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .generate-button {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 0;
+      border-radius: 11px;
+      background: linear-gradient(135deg, #72f7e2, #2dd4bf);
+      color: var(--cyan-ink);
+      box-shadow: 0 9px 22px rgba(45, 212, 191, 0.18), inset 0 1px rgba(255, 255, 255, 0.4);
+      font-weight: 850;
+      cursor: pointer;
+      transition: transform 130ms ease, filter 130ms ease, box-shadow 130ms ease;
+    }
+
+    .generate-button:hover:not(:disabled) {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 26px rgba(45, 212, 191, 0.22), inset 0 1px rgba(255, 255, 255, 0.45);
+    }
+
+    .generate-button:active:not(:disabled) { transform: translateY(1px); }
+
+    .generate-button:disabled {
+      opacity: 0.72;
+      cursor: wait;
+    }
+
+    .spinner {
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(5, 46, 43, 0.3);
+      border-top-color: var(--cyan-ink);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .replay-button {
+      min-width: 52px;
+      border-radius: 11px;
+      padding: 0 14px;
+      font-size: 1.05rem;
+    }
+
+    .replay-button:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    .error-banner {
+      position: relative;
+      margin-top: 12px;
+      padding: 11px 38px 11px 12px;
+      border: 1px solid rgba(251, 113, 133, 0.42);
+      border-radius: 9px;
+      background: var(--red-bg);
+      color: #fecdd3;
+      font-size: 0.8rem;
+    }
+
+    .dismiss-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #fecdd3;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .dismiss-button:hover { background: rgba(255, 255, 255, 0.08); }
+
+    .stage {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .typing-card { padding: clamp(18px, 3vw, 28px); }
+
+    .typing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 15px;
+    }
+
+    .playback-state {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.73rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .target-label {
+      margin-bottom: 6px;
+      color: var(--dim);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .target-line {
+      min-height: 26px;
+      margin-bottom: 16px;
+      color: #596372;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(0.85rem, 1.45vw, 1.02rem);
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .target-line .matched { color: #cbd5e1; }
+    .target-line .mismatch {
+      border-radius: 2px;
+      background: rgba(251, 113, 133, 0.17);
+      color: var(--red);
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .typed-output {
+      min-height: 132px;
+      padding: 18px;
+      border: 1px solid #293443;
+      border-radius: 13px;
+      background:
+        linear-gradient(rgba(94, 234, 212, 0.025), rgba(94, 234, 212, 0)),
+        #090d13;
+      box-shadow: inset 0 1px 10px rgba(0, 0, 0, 0.32);
+      color: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(1.15rem, 2.25vw, 1.85rem);
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .typed-output .wrong {
+      border-radius: 3px;
+      background: rgba(251, 113, 133, 0.14);
+      color: #fda4af;
+    }
+
+    .caret {
+      display: inline-block;
+      width: 0.11em;
+      height: 1.15em;
+      margin-left: 0.07em;
+      border-radius: 999px;
+      background: var(--cyan);
+      box-shadow: 0 0 10px rgba(94, 234, 212, 0.4);
+      vertical-align: -0.18em;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-top: 14px;
+      overflow: hidden;
+      border: 1px solid var(--line-soft);
+      border-radius: 13px;
+      background: rgba(11, 16, 23, 0.82);
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 12px 14px;
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .stat:last-child { border-right: 0; }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--dim);
+      font-size: 0.61rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      display: block;
+      overflow: hidden;
+      color: #dce3ec;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(0.8rem, 1.5vw, 1rem);
+      font-variant-numeric: tabular-nums;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .similarity.good { color: var(--green); }
+    .similarity.medium { color: var(--amber); }
+    .similarity.poor { color: var(--red); }
+
+    .keyboard-card {
+      margin-top: 18px;
+      padding: clamp(14px, 2.3vw, 23px);
+    }
+
+    .keyboard {
+      display: grid;
+      width: 100%;
+      gap: clamp(4px, 0.65vw, 8px);
+      padding: clamp(7px, 1.1vw, 12px);
+      border: 1px solid #242d39;
+      border-radius: 14px;
+      background: linear-gradient(155deg, #0b0f15, #111720);
+      box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.5), 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .key-row {
+      display: flex;
+      gap: clamp(3px, 0.55vw, 7px);
+      min-width: 0;
+    }
+
+    .key {
+      --key-weight: 1;
+      position: relative;
+      flex: var(--key-weight) 1 0;
+      min-width: 0;
+      aspect-ratio: 1 / 0.88;
+      border: 1px solid #374250;
+      border-bottom-color: #1a2029;
+      border-radius: clamp(4px, 0.7vw, 8px);
+      background: linear-gradient(145deg, #252e3a, #171e27);
+      box-shadow:
+        0 clamp(2px, 0.38vw, 5px) 0 #090d12,
+        0 clamp(4px, 0.6vw, 8px) 8px rgba(0, 0, 0, 0.33),
+        inset 0 1px rgba(255, 255, 255, 0.08);
+      color: #aeb8c6;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(0.48rem, 1vw, 0.78rem);
+      font-weight: 700;
+      user-select: none;
+      transform: translateY(0);
+      transition: transform 45ms ease, background 60ms ease, border-color 60ms ease, color 60ms ease, box-shadow 60ms ease;
+    }
+
+    .key::after {
+      content: attr(data-label);
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      text-overflow: clip;
+      white-space: nowrap;
+    }
+
+    .key.wide { aspect-ratio: auto; }
+
+    .key.pressed {
+      border-color: var(--cyan);
+      background: linear-gradient(145deg, #8cf8e8, #22cbb7);
+      box-shadow:
+        0 1px 0 #074b44,
+        0 0 18px rgba(45, 212, 191, 0.43),
+        inset 0 1px rgba(255, 255, 255, 0.52);
+      color: #052e2b;
+      transform: translateY(clamp(2px, 0.35vw, 4px));
+    }
+
+    .space-row { justify-content: center; }
+    .space-row .key { flex: 0 1 48%; min-height: clamp(26px, 4vw, 42px); }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      margin-top: 14px;
+      padding: 0 4px;
+      color: var(--dim);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.66rem;
+    }
+
+    #modelInfo {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 300px minmax(0, 1fr); }
+      .controls { padding: 17px; }
+      .stats-strip { grid-template-columns: repeat(3, 1fr); }
+      .stat:nth-child(3) { border-right: 0; }
+      .stat:nth-child(-n+3) { border-bottom: 1px solid var(--line-soft); }
+    }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 660px); padding-top: 20px; }
+      .masthead { align-items: flex-start; flex-direction: column; gap: 14px; }
+      .workspace { grid-template-columns: 1fr; }
+      .controls { position: static; }
+      .typing-card { margin-top: 0; }
+      footer { flex-direction: column; gap: 4px; }
+    }
+
+    @media (max-width: 460px) {
+      .stats-strip { grid-template-columns: repeat(2, 1fr); }
+      .stat, .stat:nth-child(3) { border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+      .stat:nth-child(2n) { border-right: 0; }
+      .stat:last-child { border-bottom: 0; }
+      .key { font-size: 0.42rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+      .caret { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Motor model playground</p>
+        <h1>Watch it think<br>with its fingers.</h1>
+        <p class="intro">Give the model a sentence, tune the typist, and watch every press, correction, and key rollover unfold.</p>
+      </div>
+      <div class="status-pill" id="apiStatus" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="apiStatusText">Connecting</span>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="card controls" aria-labelledby="controlsTitle">
+        <div class="section-heading">
+          <h2 id="controlsTitle">Typing setup</h2>
+          <span class="counter" id="charCounter">0 / 300</span>
+        </div>
+
+        <label class="sr-only" for="targetText" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Target text</label>
+        <textarea id="targetText" maxlength="300" spellcheck="true">Sunday tickets have been on sale for weeks.</textarea>
+
+        <div class="control-stack">
+          <div class="range-control">
+            <label for="wpm">Target speed <span class="value"><span id="wpmValue">60</span> WPM</span></label>
+            <input id="wpm" type="range" min="20" max="156" step="1" value="60">
+          </div>
+
+          <div class="range-control">
+            <label for="ecor">Corrected errors <span class="value"><span id="ecorValue">2</span>%</span></label>
+            <input id="ecor" type="range" min="0" max="30" step="1" value="2">
+          </div>
+
+          <div class="range-control">
+            <label for="eunc">Uncorrected errors <span class="value"><span id="euncValue">1</span>%</span></label>
+            <input id="eunc" type="range" min="0" max="30" step="1" value="1">
+          </div>
+
+          <div class="range-control">
+            <label for="temperature">Temperature <span class="value" id="temperatureValue">1.0</span></label>
+            <input id="temperature" type="range" min="0.1" max="2" step="0.1" value="1">
+          </div>
+
+          <div>
+            <label class="seed-label" for="seed">Seed <span class="value">integer</span></label>
+            <div class="seed-row">
+              <input id="seed" type="number" step="1" value="0" inputmode="numeric">
+              <button class="small-button" id="randomizeSeed" type="button">Randomize</button>
+            </div>
+          </div>
+
+          <fieldset class="speed-fieldset">
+            <legend>Playback speed</legend>
+            <div class="speed-options">
+              <input id="speed025" type="radio" name="playbackSpeed" value="0.25"><label for="speed025">0.25×</label>
+              <input id="speed05" type="radio" name="playbackSpeed" value="0.5"><label for="speed05">0.5×</label>
+              <input id="speed1" type="radio" name="playbackSpeed" value="1" checked><label for="speed1">1×</label>
+              <input id="speed2" type="radio" name="playbackSpeed" value="2"><label for="speed2">2×</label>
+              <input id="speed4" type="radio" name="playbackSpeed" value="4"><label for="speed4">4×</label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="action-row">
+          <button class="generate-button" id="generateButton" type="button">
+            <span class="spinner" id="spinner" hidden aria-hidden="true"></span>
+            <span id="generateLabel">Type it</span>
+          </button>
+          <button class="replay-button" id="replayButton" type="button" title="Replay last result" aria-label="Replay last result" disabled>↻</button>
+        </div>
+
+        <div class="error-banner" id="errorBanner" role="alert" hidden>
+          <span id="errorMessage"></span>
+          <button class="dismiss-button" id="dismissError" type="button" aria-label="Dismiss error">×</button>
+        </div>
+      </aside>
+
+      <section class="stage" aria-label="Typing model visualization">
+        <div class="card typing-card">
+          <div class="typing-header">
+            <h2>Live output</h2>
+            <span class="playback-state" id="playbackState" aria-live="polite">Ready</span>
+          </div>
+
+          <div class="target-label">Target</div>
+          <div class="target-line" id="targetLine" aria-label="Target text"></div>
+          <div class="typed-output" id="typedOutput" aria-label="Model typed output"><span class="caret" aria-hidden="true"></span></div>
+
+          <div class="stats-strip" aria-label="Run statistics">
+            <div class="stat">
+              <span class="stat-label">Similarity</span>
+              <span class="stat-value similarity" id="similarityStat">—</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Realized / target</span>
+              <span class="stat-value" id="wpmStat">—</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Duration</span>
+              <span class="stat-value" id="durationStat">—</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Events</span>
+              <span class="stat-value" id="eventsStat">—</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Backspaces</span>
+              <span class="stat-value" id="backspacesStat">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card keyboard-card">
+          <div class="section-heading"><h2>Keyboard</h2></div>
+          <div class="keyboard" id="keyboard" aria-label="Keyboard visualization"></div>
+        </div>
+
+        <footer>
+          <span id="modelInfo">checkpoint: loading · device: loading</span>
+          <span>timings shown at selected playback speed</span>
+        </footer>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const DEFAULT_TEXT = 'Sunday tickets have been on sale for weeks.';
+      const FALLBACK_MAX_CHARS = 300;
+
+      const elements = {
+        apiStatus: document.getElementById('apiStatus'),
+        apiStatusText: document.getElementById('apiStatusText'),
+        targetText: document.getElementById('targetText'),
+        charCounter: document.getElementById('charCounter'),
+        wpm: document.getElementById('wpm'),
+        wpmValue: document.getElementById('wpmValue'),
+        ecor: document.getElementById('ecor'),
+        ecorValue: document.getElementById('ecorValue'),
+        eunc: document.getElementById('eunc'),
+        euncValue: document.getElementById('euncValue'),
+        temperature: document.getElementById('temperature'),
+        temperatureValue: document.getElementById('temperatureValue'),
+        seed: document.getElementById('seed'),
+        randomizeSeed: document.getElementById('randomizeSeed'),
+        generateButton: document.getElementById('generateButton'),
+        generateLabel: document.getElementById('generateLabel'),
+        spinner: document.getElementById('spinner'),
+        replayButton: document.getElementById('replayButton'),
+        errorBanner: document.getElementById('errorBanner'),
+        errorMessage: document.getElementById('errorMessage'),
+        dismissError: document.getElementById('dismissError'),
+        playbackState: document.getElementById('playbackState'),
+        targetLine: document.getElementById('targetLine'),
+        typedOutput: document.getElementById('typedOutput'),
+        keyboard: document.getElementById('keyboard'),
+        similarityStat: document.getElementById('similarityStat'),
+        wpmStat: document.getElementById('wpmStat'),
+        durationStat: document.getElementById('durationStat'),
+        eventsStat: document.getElementById('eventsStat'),
+        backspacesStat: document.getElementById('backspacesStat'),
+        modelInfo: document.getElementById('modelInfo')
+      };
+
+      let maxChars = FALLBACK_MAX_CHARS;
+      let lastResult = null;
+      let lastRequestedWpm = Number(elements.wpm.value);
+      let playbackGeneration = 0;
+      let playbackTimers = new Set();
+      let pressedCounts = new Map();
+      let typedBuffer = '';
+
+      const shiftedToBase = {
+        '~': '`', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+        '^': '6', '&': '7', '*': '8', '(': '9', ')': '0', '_': '-',
+        '+': '=', '{': '[', '}': ']', '|': '\\', ':': ';', '"': "'",
+        '<': ',', '>': '.', '?': '/'
+      };
+
+      const keyboardRows = [
+        [
+          ['`', '` ~'], ['1', '1 !'], ['2', '2 @'], ['3', '3 #'], ['4', '4 $'],
+          ['5', '5 %'], ['6', '6 ^'], ['7', '7 &'], ['8', '8 *'], ['9', '9 ('],
+          ['0', '0 )'], ['-', '- _'], ['=', '= +'], ['Backspace', 'Backspace', 2.15]
+        ],
+        [
+          ['q', 'Q'], ['w', 'W'], ['e', 'E'], ['r', 'R'], ['t', 'T'], ['y', 'Y'],
+          ['u', 'U'], ['i', 'I'], ['o', 'O'], ['p', 'P'], ['[', '[ {'], [']', '] }'], ['\\', '\\ |']
+        ],
+        [
+          ['a', 'A'], ['s', 'S'], ['d', 'D'], ['f', 'F'], ['g', 'G'], ['h', 'H'],
+          ['j', 'J'], ['k', 'K'], ['l', 'L'], [';', '; :'], ["'", "' \""],
+        ],
+        [
+          ['Shift', 'Shift', 1.75], ['z', 'Z'], ['x', 'X'], ['c', 'C'], ['v', 'V'],
+          ['b', 'B'], ['n', 'N'], ['m', 'M'], [',', ', <'], ['.', '. >'], ['/', '/ ?'], ['Shift', 'Shift', 1.75]
+        ],
+        [[' ', 'Space', 6]]
+      ];
+
+      function makeKeyboard() {
+        keyboardRows.forEach((row, rowIndex) => {
+          const rowElement = document.createElement('div');
+          rowElement.className = `key-row${rowIndex === keyboardRows.length - 1 ? ' space-row' : ''}`;
+          row.forEach(([key, label, weight = 1]) => {
+            const keyElement = document.createElement('div');
+            keyElement.className = `key${weight !== 1 ? ' wide' : ''}`;
+            keyElement.dataset.key = key;
+            keyElement.dataset.label = label;
+            keyElement.style.setProperty('--key-weight', String(weight));
+            keyElement.setAttribute('aria-hidden', 'true');
+            rowElement.appendChild(keyElement);
+          });
+          elements.keyboard.appendChild(rowElement);
+        });
+      }
+
+      function updateRange(range, output, formatter = value => value) {
+        const min = Number(range.min);
+        const max = Number(range.max);
+        const value = Number(range.value);
+        const fill = ((value - min) / (max - min)) * 100;
+        range.style.setProperty('--fill', `${fill}%`);
+        output.textContent = formatter(value);
+      }
+
+      function updateCounter() {
+        elements.charCounter.textContent = `${elements.targetText.value.length} / ${maxChars}`;
+        if (!lastResult) renderTypingView(elements.targetText.value);
+      }
+
+      function getPlaybackSpeed() {
+        const selected = document.querySelector('input[name="playbackSpeed"]:checked');
+        return selected ? Number(selected.value) : 1;
+      }
+
+      function isShiftedCharacter(char) {
+        return (/[A-Z]/).test(char) || Object.prototype.hasOwnProperty.call(shiftedToBase, char);
+      }
+
+      function baseKeyForCharacter(char) {
+        if (Object.prototype.hasOwnProperty.call(shiftedToBase, char)) return shiftedToBase[char];
+        if (/[A-Z]/.test(char)) return char.toLowerCase();
+        return char;
+      }
+
+      function keyElementsFor(key) {
+        return Array.from(elements.keyboard.querySelectorAll('.key')).filter(el => el.dataset.key === key);
+      }
+
+      function setKeyPressed(key, pressed) {
+        if (!key) return;
+        const current = pressedCounts.get(key) || 0;
+        const next = Math.max(0, current + (pressed ? 1 : -1));
+        if (next === 0) pressedCounts.delete(key);
+        else pressedCounts.set(key, next);
+        keyElementsFor(key).forEach(keyElement => keyElement.classList.toggle('pressed', next > 0));
+      }
+
+      function releaseAllKeys() {
+        pressedCounts.clear();
+        elements.keyboard.querySelectorAll('.key.pressed').forEach(key => key.classList.remove('pressed'));
+      }
+
+      function cancelPlayback(nextState = 'Ready') {
+        playbackGeneration += 1;
+        playbackTimers.forEach(timer => window.clearTimeout(timer));
+        playbackTimers.clear();
+        releaseAllKeys();
+        elements.playbackState.textContent = nextState;
+      }
+
+      function schedule(callback, delay, generation) {
+        const timer = window.setTimeout(() => {
+          playbackTimers.delete(timer);
+          if (generation === playbackGeneration) callback();
+        }, Math.max(0, delay));
+        playbackTimers.add(timer);
+      }
+
+      function renderTypingView(target = lastResult ? lastResult.target : elements.targetText.value) {
+        elements.targetLine.replaceChildren();
+        Array.from(target || '').forEach((char, index) => {
+          const span = document.createElement('span');
+          span.textContent = char;
+          if (index < typedBuffer.length) {
+            span.className = typedBuffer[index] === char ? 'matched' : 'mismatch';
+          }
+          elements.targetLine.appendChild(span);
+        });
+
+        elements.typedOutput.replaceChildren();
+        Array.from(typedBuffer).forEach((char, index) => {
+          const span = document.createElement('span');
+          span.textContent = char;
+          if (char !== (target || '')[index]) span.className = 'wrong';
+          elements.typedOutput.appendChild(span);
+        });
+        const caret = document.createElement('span');
+        caret.className = 'caret';
+        caret.setAttribute('aria-hidden', 'true');
+        elements.typedOutput.appendChild(caret);
+      }
+
+      function applyPress(event, target) {
+        if (event.type === 'bksp') {
+          typedBuffer = typedBuffer.slice(0, -1);
+          setKeyPressed('Backspace', true);
+        } else if (event.type === 'key' && typeof event.char === 'string') {
+          typedBuffer += event.char;
+          const baseKey = baseKeyForCharacter(event.char);
+          setKeyPressed(baseKey, true);
+          if (isShiftedCharacter(event.char)) setKeyPressed('Shift', true);
+        }
+        renderTypingView(target);
+      }
+
+      function applyRelease(event) {
+        if (event.type === 'bksp') {
+          setKeyPressed('Backspace', false);
+        } else if (event.type === 'key' && typeof event.char === 'string') {
+          setKeyPressed(baseKeyForCharacter(event.char), false);
+          if (isShiftedCharacter(event.char)) setKeyPressed('Shift', false);
+        }
+      }
+
+      function playResult(result) {
+        cancelPlayback('Starting…');
+        const generation = playbackGeneration;
+        const speed = getPlaybackSpeed();
+        const events = Array.isArray(result.events) ? result.events : [];
+        const target = typeof result.target === 'string' ? result.target : '';
+        typedBuffer = '';
+        renderTypingView(target);
+
+        if (events.length === 0) {
+          elements.playbackState.textContent = 'No events';
+          return;
+        }
+
+        const firstPress = Number(events[0].press) || 0;
+        let finishAt = 0;
+        elements.playbackState.textContent = `Playing · ${speed}×`;
+
+        events.forEach(event => {
+          const press = Number(event.press);
+          const release = Number(event.release);
+          const pressAt = (Math.max(firstPress, Number.isFinite(press) ? press : firstPress) - firstPress) / speed;
+          const releaseAt = (Math.max(Number.isFinite(release) ? release : press, Number.isFinite(press) ? press : firstPress) - firstPress) / speed;
+          finishAt = Math.max(finishAt, releaseAt);
+          schedule(() => applyPress(event, target), pressAt, generation);
+          schedule(() => applyRelease(event), releaseAt, generation);
+        });
+
+        schedule(() => {
+          releaseAllKeys();
+          elements.playbackState.textContent = 'Complete';
+        }, finishAt + 24, generation);
+      }
+
+      function setStats(result, requestedWpm) {
+        const similarity = Number(result.similarity);
+        const similarityPercent = Number.isFinite(similarity) ? similarity * 100 : 0;
+        elements.similarityStat.textContent = `${similarityPercent.toFixed(1)}%`;
+        elements.similarityStat.classList.remove('good', 'medium', 'poor');
+        elements.similarityStat.classList.add(similarityPercent >= 90 ? 'good' : similarityPercent >= 80 ? 'medium' : 'poor');
+
+        const realizedWpm = Number(result.realized_wpm);
+        elements.wpmStat.textContent = `${Number.isFinite(realizedWpm) ? realizedWpm.toFixed(1) : '—'} / ${requestedWpm}`;
+
+        const duration = Number(result.duration_ms);
+        elements.durationStat.textContent = Number.isFinite(duration) ? `${(duration / 1000).toFixed(2)} s` : '—';
+        elements.eventsStat.textContent = Array.isArray(result.events) ? String(result.events.length) : '0';
+        elements.backspacesStat.textContent = String(Number.isFinite(Number(result.backspaces)) ? Number(result.backspaces) : 0);
+      }
+
+      function showError(message) {
+        elements.errorMessage.textContent = message || 'Something went wrong.';
+        elements.errorBanner.hidden = false;
+      }
+
+      function hideError() {
+        elements.errorBanner.hidden = true;
+        elements.errorMessage.textContent = '';
+      }
+
+      function setThinking(thinking) {
+        elements.generateButton.disabled = thinking;
+        elements.spinner.hidden = !thinking;
+        elements.generateLabel.textContent = thinking ? 'thinking…' : 'Type it';
+      }
+
+      async function fetchInfo() {
+        try {
+          const response = await fetch('/api/info');
+          if (!response.ok) throw new Error(`Info request failed (${response.status})`);
+          const info = await response.json();
+          if (Number.isInteger(info.max_chars) && info.max_chars > 0) {
+            maxChars = info.max_chars;
+            elements.targetText.maxLength = String(maxChars);
+          }
+          elements.modelInfo.textContent = `checkpoint: ${info.checkpoint || 'unknown'} · device: ${info.device || 'unknown'}`;
+          elements.apiStatus.classList.add('ready');
+          elements.apiStatusText.textContent = 'Model ready';
+          updateCounter();
+        } catch (error) {
+          elements.apiStatus.classList.remove('ready');
+          elements.apiStatusText.textContent = 'API unavailable';
+          elements.modelInfo.textContent = 'checkpoint: unavailable · device: unavailable';
+          showError(error instanceof Error ? error.message : 'Could not reach the playground API.');
+          updateCounter();
+        }
+      }
+
+      async function generate() {
+        hideError();
+        const text = elements.targetText.value;
+        if (!text.trim()) {
+          showError('Enter some target text first.');
+          elements.targetText.focus();
+          return;
+        }
+        if (text.length > maxChars) {
+          showError(`Target text must be ${maxChars} characters or fewer.`);
+          elements.targetText.focus();
+          return;
+        }
+
+        const seed = Number(elements.seed.value);
+        if (!Number.isInteger(seed)) {
+          showError('Seed must be a whole number.');
+          elements.seed.focus();
+          return;
+        }
+
+        cancelPlayback('Generating…');
+        typedBuffer = '';
+        lastRequestedWpm = Number(elements.wpm.value);
+        renderTypingView(text);
+        setThinking(true);
+
+        try {
+          const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              wpm: lastRequestedWpm,
+              ecor: Number(elements.ecor.value),
+              eunc: Number(elements.eunc.value),
+              temperature: Number(elements.temperature.value),
+              seed
+            })
+          });
+
+          let payload;
+          try {
+            payload = await response.json();
+          } catch (error) {
+            throw new Error(`Server returned an unreadable response (${response.status}).`);
+          }
+          if (!response.ok) throw new Error(payload.error || `Generation failed (${response.status}).`);
+
+          lastResult = payload;
+          elements.replayButton.disabled = false;
+          setStats(payload, lastRequestedWpm);
+          playResult(payload);
+        } catch (error) {
+          cancelPlayback('Error');
+          showError(error instanceof Error ? error.message : 'Could not reach the generation server.');
+        } finally {
+          setThinking(false);
+        }
+      }
+
+      makeKeyboard();
+      elements.targetText.value = DEFAULT_TEXT;
+      updateCounter();
+      updateRange(elements.wpm, elements.wpmValue);
+      updateRange(elements.ecor, elements.ecorValue);
+      updateRange(elements.eunc, elements.euncValue);
+      updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1));
+
+      elements.targetText.addEventListener('input', updateCounter);
+      elements.wpm.addEventListener('input', () => updateRange(elements.wpm, elements.wpmValue));
+      elements.ecor.addEventListener('input', () => updateRange(elements.ecor, elements.ecorValue));
+      elements.eunc.addEventListener('input', () => updateRange(elements.eunc, elements.euncValue));
+      elements.temperature.addEventListener('input', () => updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1)));
+      elements.randomizeSeed.addEventListener('click', () => {
+        const random = new Uint32Array(1);
+        window.crypto.getRandomValues(random);
+        elements.seed.value = String(random[0] & 0x7fffffff);
+      });
+      elements.generateButton.addEventListener('click', generate);
+      elements.replayButton.addEventListener('click', () => {
+        if (lastResult) playResult(lastResult);
+      });
+      elements.dismissError.addEventListener('click', hideError);
+
+      fetchInfo();
+    })();
+  </script>
+</body>
+</html>
