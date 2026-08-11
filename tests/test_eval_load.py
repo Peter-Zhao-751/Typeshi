@@ -11,6 +11,10 @@ from typeshi.eval.load import load_checkpoint_model
 
 BACKEND = {"dtype": "float32", "device_map": None, "bf16": False}
 
+needs_network = pytest.mark.network
+
+TINY = "hf-internal-testing/tiny-random-LlamaForCausalLM"
+
 
 def test_routes_peft_when_adapter_config_present(tmp_path, monkeypatch):
     import peft
@@ -85,3 +89,18 @@ def test_checkpoint_tokenizer_guard_is_loud(tmp_path, monkeypatch):
     )
     with pytest.raises(SystemExit):
         load_checkpoint_tokenizer(d)
+
+
+@needs_network
+def test_probe_passes_against_a_real_peft_style_tokenizer():
+    """The untested branch: a PEFT checkpoint's tokenizer is loaded via
+    AutoTokenizer (_load_raw_tokenizer's other path), on the SAME extended
+    shape prepare_tokenizer() builds for Phase 1 (base tokenizer + added
+    grammar tokens). The guard must not spuriously SystemExit a legitimate
+    real-tokenizer eval -- that would be the exact failure class this task
+    exists to prevent, just flipped onto the branch nothing else covers."""
+    from typeshi.eval.load import _probe_ok
+    from typeshi.train_motor import prepare_tokenizer
+
+    tok = prepare_tokenizer(TINY)
+    assert _probe_ok(tok)

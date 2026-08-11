@@ -27,7 +27,10 @@ def load_checkpoint_model(checkpoint: Path, backend: dict):
     )
 
 
-_PROBE = "<TARGET>a b c<PROCESS>"
+# Two adjacent special tokens with no intervening text (<MODE:T><TARGET>)
+# exercise the joiner-insertion failure a probe with only one special token
+# in a row would miss, on top of the literal-space check.
+_PROBE = "<MODE:T><TARGET>a b c<PROCESS>"
 
 
 def _load_raw_tokenizer(checkpoint: Path):
@@ -48,6 +51,19 @@ def _load_raw_tokenizer(checkpoint: Path):
     return PreTrainedTokenizerFast.from_pretrained(checkpoint)
 
 
+def _probe_ok(tok) -> bool:
+    """True iff `tok` round-trips `_PROBE` byte-exactly.
+
+    Shared by the loader's guard and the offline/network tests so both
+    exercise the exact same check the eval runs against.
+    """
+    try:
+        ids = tok(_PROBE, add_special_tokens=False)["input_ids"]
+        return tok.decode(ids, skip_special_tokens=False) == _PROBE
+    except Exception:  # noqa: BLE001 - any probe failure is the same verdict
+        return False
+
+
 def load_checkpoint_tokenizer(checkpoint: Path):
     """Loads the tokenizer and PROVES it round-trips before anyone uses it.
 
@@ -56,12 +72,7 @@ def load_checkpoint_tokenizer(checkpoint: Path):
     here costs seconds; failing quiet cost a pilot cycle.
     """
     tok = _load_raw_tokenizer(Path(checkpoint))
-    try:
-        ids = tok(_PROBE, add_special_tokens=False)["input_ids"]
-        exact = tok.decode(ids, skip_special_tokens=False) == _PROBE
-    except Exception:  # noqa: BLE001 - any probe failure is the same verdict
-        exact = False
-    if not exact:
+    if not _probe_ok(tok):
         raise SystemExit(
             f"tokenizer loaded from {checkpoint} does not round-trip "
             f"{_PROBE!r} byte-exactly -- the wrapper class is mangling "

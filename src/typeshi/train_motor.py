@@ -14,6 +14,11 @@ def prepare_tokenizer(base_model: str = config.BASE_MODEL):
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(base_model)
+    # decode() must stay byte-exact -- the eval's round-trip guard
+    # (load_checkpoint_tokenizer) decodes with skip_special_tokens=False and
+    # compares literally; a base model shipping cleanup=True would silently
+    # respace around added grammar tokens and spuriously trip the guard.
+    tok.clean_up_tokenization_spaces = False
     # Prefix-only entries ("<CUR:", "<SELDEL:") carry variable integers, so only
     # whole tokens are registered; the integers tokenize as ordinary digits.
     whole = [t for t in special_tokens() if t.endswith(">")]
