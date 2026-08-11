@@ -25,8 +25,10 @@ the Tier-1 milestone passes or you can explain precisely why it cannot.**
    checkpoint) are what remain.
 4. `docs/data-schemas.md` — the real corpus schemas. The published papers and
    the plan's guesses were both wrong about KLiCKe; this file is ground truth.
-5. `docs/training-on-apple-silicon.md` — why this moved to a GPU, and
-   measurements you may find useful for comparison.
+5. `docs/results-08b-shakedown.md` — the local 0.8B baseline you are
+   beating: the data-scaling curve (0% -> 14.2% valid from 3.8k -> 17.7k
+   examples), and the MPS sampler bug that corrupted earlier numbers.
+6. `docs/training-on-apple-silicon.md` — why this moved to a GPU.
 
 ## What the system does
 
@@ -59,9 +61,11 @@ language. TRL masks the prompt from the loss — only the event stream trains.
    test suite green and `data/processed/split.json` written.
 2. Smoke-test training (`--epochs 0.002`). Verify the log reports
    `bf16': True`, `seeded 12810 event-token embeddings`, and a falling loss.
-3. Train. **Start with a subset** — rebuild with `--limit-aalto 20000` for
-   ~230k examples. A full epoch is ~215M tokens and Phase 1 only needs motor
-   timing, which likely saturates far earlier. Scale up only if eval demands.
+3. Train. **Start with a subset** — rebuild with `--limit-aalto 20000`
+   (~235k examples). The local scaling curve (0% -> 14.2% valid going
+   3.8k -> 17.7k examples) says data volume is the binding lever, so expect
+   to scale up quickly if validity tracks that curve; a full epoch is ~215M
+   tokens.
 4. Run `scripts/run_eval.py` and read the report.
 5. Iterate toward the gates. If the model fails, the levers in plan order are:
    more data, lower sampling temperature, longer training, then a
@@ -108,7 +112,14 @@ number: a big gap means length is doing the separating, not timing.
   sessions replaying under 0.90 similarity to USER_INPUT, and sessions with
   characters outside the 97-identity English vocabulary. Do not relax any of
   these to raise yield.
-- **`generate()` can emit text outside the grammar**, which raises
+- **Sampling is Gumbel-argmax, not torch.multinomial** (typeshi/constrain).
+  multinomial on MPS emitted tokens with verified -inf logits; Gumbel is
+  distributionally identical, immune by construction, and the default on
+  every device. Do not "simplify" it back to do_sample=True.
+- **Constrained decoding is on by default in the eval** and eliminates
+  grammar failures by construction; `--unconstrained` is the diagnostic path.
+- **`generate()` can emit text outside the grammar** (unconstrained mode),
+  which raises
   `ValueError`. `run_eval.py` counts these as
   `generations_rejected_as_malformed`. A high count is a real finding about
   model quality — report it, do not silence it.
@@ -116,7 +127,7 @@ number: a big gap means length is doing the separating, not timing.
 ## How to work
 
 - Run `python -m pytest -q` before and after changes. It should stay green
-  (116 passed, 3–4 skipped). Network-dependent tests need
+  (138 passed, a handful skipped). Network-dependent tests need
   `TYPESHI_NETWORK_TESTS=1`.
 - Commit as you go, following the existing message style in `git log`.
 - Long runs: use `tee` to a file under `logs/` and check in periodically

@@ -101,6 +101,11 @@ python scripts/run_eval.py --checkpoint checkpoints/motor --n 200 \
   --out eval_report.json
 ```
 
+Speed tip: pointing `--held-out` at the full corpus works (non-held-out
+writers are skipped) but parses every file it passes. Faster: symlink just
+the held-out writers' files into a directory and point `--held-out` there —
+the writer list is `test_writers` in the checkpoint's `split.json`.
+
 Tier-1 passes only when ALL five gates hold (each closes a demonstrated
 exploit — an adversarial review showed the original two-gate version passed
 on exact-copy fakes and on cherry-picked 1% survivor generations):
@@ -163,7 +168,15 @@ fidelity, and say so in any writeup.
 ## Base model
 
 `config.BASE_MODEL` is `Qwen/Qwen2.5-7B-Instruct` — ungated, no login needed,
-and permitted by the plan ("Llama or Qwen").
+and permitted by the plan ("Llama or Qwen"). It is the recommended GPU
+default: plain attention, untied embeddings, and the whole pipeline is
+tested against it.
+
+`Qwen/Qwen3.5-9B` is a viable alternative (the local runs used its 0.8B
+sibling; the LoRA target superset and tied-embedding handling cover the
+hybrid architecture) — but on CUDA install `flash-linear-attention` and
+`causal-conv1d` first, or its linear-attention layers fall back to a slow
+torch path.
 
 `meta-llama/Meta-Llama-3.1-8B-Instruct` is gated. Its metadata reads fine for
 anyone, but downloading weights returns 403 without an approved access request,
