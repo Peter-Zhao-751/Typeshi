@@ -20,4 +20,5 @@ packages = ["src/typeshi"]
 pythonpath = ["src"]
 markers = [
     "network: needs to download a model; set TYPESHI_NETWORK_TESTS=1 to run",
+    "slow: trains for minutes; set TYPESHI_SLOW_TESTS=1 to run",
 ]
