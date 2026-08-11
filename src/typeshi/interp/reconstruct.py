@@ -27,6 +27,18 @@ def to_log_symmetric(latency_ms: np.ndarray) -> np.ndarray:
     return sym
 
 
+def _masked_mean(a: np.ndarray, axis: int) -> np.ndarray:
+    """Mean over non-NaN entries, without numpy's empty-slice warning.
+
+    An all-masked row carries no information about that key, so NaN is the
+    correct answer rather than a RuntimeWarning -- and test output has to stay
+    pristine.
+    """
+    total = np.nansum(a, axis=axis)
+    count = np.sum(~np.isnan(a), axis=axis)
+    return np.where(count > 0, total / np.maximum(count, 1), np.nan)
+
+
 def double_center(m: np.ndarray, iters: int = 50):
     """Iterated two-way mean centering -> (residual, row_effect, col_effect, grand).
 
@@ -53,16 +65,19 @@ def double_center(m: np.ndarray, iters: int = 50):
     col = np.zeros(r.shape[1])
     grand = 0.0
     for _ in range(iters):
-        rm = np.nanmean(r, axis=1)
+        rm = _masked_mean(r, axis=1)
         r -= rm[:, None]
         row += rm
-        cm = np.nanmean(r, axis=0)
+        cm = _masked_mean(r, axis=0)
         r -= cm[None, :]
         col += cm
-        g = np.mean(row)
+        # nanmean, not mean: a fully masked key contributes NaN to the
+        # accumulator, and a plain mean would spread that NaN across every
+        # other key's effect on the next subtraction.
+        g = np.nanmean(row)
         row -= g
         grand += g
-        g = np.mean(col)
+        g = np.nanmean(col)
         col -= g
         grand += g
     return r, row, col, grand
@@ -167,7 +182,7 @@ def hand_accuracy(fitted: np.ndarray, keys=layout.KEYS) -> float:
     )
 
 
-def score(fitted: np.ndarray, truth: np.ndarray, keys=layout.KEYS) -> dict:
+def score(fitted: np.ndarray, truth: np.ndarray, keys=layout.KEYS) -> dict[str, float]:
     """Level-2 and level-3 metrics from the spec's scoring section."""
     from scipy.spatial.distance import pdist
     from scipy.stats import spearmanr

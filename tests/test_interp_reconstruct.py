@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pytest
 from typeshi.interp import layout, reconstruct
@@ -25,6 +27,28 @@ def test_double_center_strips_planted_row_and_column_effects():
     # grand-effect split alone.
     assert np.std(row_eff - row) < 0.1
     assert np.nanstd(residual) < np.nanstd(planted)
+
+
+def test_a_fully_masked_key_does_not_poison_the_other_effects():
+    """A key whose every pairing is masked has no measurable speed of its own.
+
+    Its own effect must come back NaN while the other 26 survive. A plain mean
+    in the grand-splitting step spreads that one NaN across all of them, and
+    warns while doing it -- both of which this test refuses.
+    """
+    rng = np.random.default_rng(0)
+    interaction = rng.normal(0, 0.05, (27, 27))
+    interaction = (interaction + interaction.T) / 2
+    row = rng.normal(0, 0.5, 27)
+    planted = interaction + row[:, None] + row[None, :]
+    np.fill_diagonal(planted, np.nan)
+    planted[5, :] = np.nan
+    planted[:, 5] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # an empty-slice warning fails the test
+        _, row_eff, _, _ = reconstruct.double_center(planted)
+    assert np.isnan(row_eff[5])
+    assert np.isfinite(np.delete(row_eff, 5)).all()
 
 
 def test_pipeline_recovers_a_keyboard_from_a_synthetic_matrix():
