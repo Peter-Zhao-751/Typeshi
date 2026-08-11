@@ -27,6 +27,7 @@ from pathlib import Path
 
 from typeshi.adapters import aalto
 from typeshi.buffer import replay
+from typeshi.dataset import build_prompt
 from typeshi.events import EventType
 from typeshi.eval.discriminator import (
     heuristic_baseline,
@@ -157,20 +158,16 @@ def main() -> None:
     args = ap.parse_args()
 
     import torch
-    from peft import AutoPeftModelForCausalLM
     from transformers import AutoTokenizer
 
+    from typeshi.eval.load import load_checkpoint_model
     from typeshi.train_motor import _detect_backend
 
     # Same placement rules as training: device_map="auto" on MPS aborts for
     # hybrid-attention architectures, so load on CPU there and move after.
     backend = _detect_backend()
     tok = AutoTokenizer.from_pretrained(args.checkpoint)
-    model = AutoPeftModelForCausalLM.from_pretrained(
-        args.checkpoint,
-        dtype=getattr(torch, backend["dtype"]),
-        device_map=backend["device_map"],
-    )
+    model = load_checkpoint_model(args.checkpoint, backend)
     if backend["device_map"] is None and torch.backends.mps.is_available():
         model = model.to("mps")
     model.eval()
@@ -185,6 +182,7 @@ def main() -> None:
     rejected_malformed = 0
     rejected_wrong_text = 0
     skipped_train_writer = 0
+    skipped_unencodable = 0
 
     max_attempts = 3 * args.n
     for i, (writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
@@ -203,6 +201,15 @@ def main() -> None:
             skipped_train_writer += 1
             continue
         labels = compute_labels(events, target)
+        try:
+            # The closed char vocabulary raises on prompts the build never
+            # gated (it checks typed chars, not the target sentence). A
+            # marker-containing target lands here too instead of being
+            # miscounted as a malformed *generation*.
+            tok(build_prompt(target, labels, "transcription"))
+        except Exception:  # noqa: BLE001 - pyo3 raises plain Exception
+            skipped_unencodable += 1
+            continue
         attempts += 1
         if attempts % 10 == 0:
             print(f"  attempt {attempts}: {len(real)} valid, "
@@ -240,6 +247,7 @@ def main() -> None:
             "generations_rejected_as_malformed": rejected_malformed,
             "generations_rejected_wrong_text": rejected_wrong_text,
             "sessions_skipped_not_held_out": skipped_train_writer,
+            "sessions_skipped_unencodable_prompt": skipped_unencodable,
             "held_out_writers_only": test_writers is not None,
             "temperature": args.temperature,
             "constrained_decoding": not args.unconstrained,
@@ -281,6 +289,7 @@ def main() -> None:
         "generations_rejected_as_malformed": rejected_malformed,
         "generations_rejected_wrong_text": rejected_wrong_text,
         "sessions_skipped_not_held_out": skipped_train_writer,
+        "sessions_skipped_unencodable_prompt": skipped_unencodable,
         "held_out_writers_only": test_writers is not None,
         "temperature": args.temperature,
         "constrained_decoding": not args.unconstrained,
