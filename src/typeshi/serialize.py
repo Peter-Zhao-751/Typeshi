@@ -113,7 +113,7 @@ def unsupported_chars(events: list[Event]) -> set[str]:
     }
 
 
-def serialize(events: list[Event], prev_press_time: int | None = None) -> str:
+def serialize(events: list[Event], prev_press_time: int | float | None = None) -> str:
     """Events -> token stream.
 
     `prev_press_time` is the press time of the event immediately before this
