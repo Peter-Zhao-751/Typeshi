@@ -2,84 +2,20 @@
 
 Writer IDs are namespaced by corpus (`aalto:123`, `klicke:456`) so the
 holdout split cannot accidentally treat a colliding numeric ID as one person.
+
+Collection is parallelized at the file level (see typeshi.corpus_build); the
+output is byte-identical for any --workers value.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import random
 from pathlib import Path
 
 from typeshi import config
-from typeshi.adapters import aalto, klicke
-from typeshi.dataset import build_examples, split_by_writer
-from typeshi.labels import compute_labels
-from typeshi.serialize import unsupported_chars
-
-
-def session_examples(target: str, events, mode: str) -> list[dict] | None:
-    """Examples for one session, or None if the session cannot be represented.
-
-    Two integrity gates live here rather than in the adapters, because they are
-    properties of the token format, not of any corpus: characters without a
-    registered token (English-only vocabulary), and text containing a literal
-    prompt marker.
-    """
-    if unsupported_chars(events):
-        return None
-    labels = compute_labels(events, target)
-    try:
-        return build_examples(target, events, labels, mode)
-    except ValueError:  # prompt marker inside corpus text
-        return None
-
-
-def collect_aalto(root: Path, limit: int | None, seed: int) -> list[tuple[str, dict]]:
-    """Aalto transcription sessions from physical-keyboard participants only."""
-    files = sorted(root.rglob("*_keystrokes.txt"))
-    metadata = next(root.rglob("metadata_participants.txt"), None)
-    allowed = aalto.physical_keyboard_participants(metadata) if metadata else None
-    if allowed is not None:
-        files = [f for f in files if f.stem.split("_")[0] in allowed]
-    if limit:
-        random.Random(seed).shuffle(files)
-        files = files[:limit]
-
-    rows: list[tuple[str, dict]] = []
-    dropped = 0
-    for path in files:
-        for participant, target, events in aalto.iter_sessions(path):
-            examples = session_examples(target, events, "transcription")
-            if examples is None:
-                dropped += 1
-                continue
-            rows += [(f"aalto:{participant}", ex) for ex in examples]
-    if dropped:
-        print(f"aalto: dropped {dropped} sessions (unsupported chars/markers)")
-    return rows
-
-
-def collect_klicke(root: Path, limit: int | None, seed: int) -> list[tuple[str, dict]]:
-    """KLiCKe composition sessions that replay exactly."""
-    files = sorted(root.rglob("*.csv"))
-    files = [f for f in files if klicke.gold_text_path(f) is not None]
-    if limit:
-        random.Random(seed).shuffle(files)
-        files = files[:limit]
-
-    rows: list[tuple[str, dict]] = []
-    dropped = 0
-    for path in files:
-        for writer, final_text, events in klicke.iter_sessions(path):
-            examples = session_examples(final_text, events, "composition")
-            if examples is None:
-                dropped += 1
-                continue
-            rows += [(f"klicke:{writer}", ex) for ex in examples]
-    if dropped:
-        print(f"klicke: dropped {dropped} sessions (unsupported chars/markers)")
-    return rows
+from typeshi.corpus_build import collect_aalto, collect_klicke, default_workers
+from typeshi.dataset import split_by_writer
 
 
 def main() -> None:
@@ -96,15 +32,22 @@ def main() -> None:
         help="sample this many participant files (the corpus has 168k)",
     )
     ap.add_argument("--limit-klicke", type=int, default=None)
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=default_workers(),
+        help="worker processes for file parsing; output is identical for any "
+        "value (default: cores minus two)",
+    )
     args = ap.parse_args()
 
-    rows: list[tuple[str, dict]] = []
+    rows = []
     if args.aalto.exists():
-        rows += collect_aalto(args.aalto, args.limit_aalto, args.seed)
+        rows += collect_aalto(args.aalto, args.limit_aalto, args.seed, args.workers)
         print(f"aalto: {len(rows)} examples")
     if args.klicke.exists():
         before = len(rows)
-        rows += collect_klicke(args.klicke, args.limit_klicke, args.seed)
+        rows += collect_klicke(args.klicke, args.limit_klicke, args.seed, args.workers)
         print(f"klicke: {len(rows) - before} examples")
 
     if not rows:
