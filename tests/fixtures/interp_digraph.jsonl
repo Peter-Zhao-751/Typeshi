@@ -1,0 +1,3 @@
+{"prompt": "<MODE:T><WPM:10><ECOR:0><EUNC:0><REV:0><TARGET>the<PROCESS>", "completion": "<t:50><DT:60><h:50><DT:61><e:52>"}
+{"prompt": "<MODE:T><WPM:10><ECOR:0><EUNC:0><REV:0><TARGET>ab<PROCESS>", "completion": "<a:50><DT:60><BKSP:50><DT:61><b:50>"}
+{"prompt": "<MODE:T><WPM:10><ECOR:0><EUNC:0><REV:0><TARGET>t he<PROCESS>", "completion": "<t:50><DT:60><SPC:55><DT:62><h:50>"}
