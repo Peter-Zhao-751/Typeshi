@@ -26,8 +26,11 @@ def to_bin(dt_ms: int) -> int:
     return min(max(k, 0), config.TIME_BINS - 1)
 
 
-def from_bin(k: int) -> int:
+def from_bin(k: int) -> int | float:
     if not 0 <= k < config.TIME_BINS:
         raise ValueError(f"bin index {k} out of range")
     edges = bin_edges()
-    return int(round(float(np.sqrt(edges[k] * edges[k + 1]))))
+    # Return the geometric mean (bin center) as a float to guarantee round-trip
+    # idempotence: to_bin(from_bin(k)) == k for all k. Integer rounding breaks
+    # this for low-valued bins where resolution is coarse.
+    return float(np.sqrt(edges[k] * edges[k + 1]))

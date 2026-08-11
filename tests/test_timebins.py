@@ -45,5 +45,15 @@ def test_round_trip_error_is_bounded():
         assert abs(recovered - dt) / dt < 0.15
 
 
-def test_from_bin_returns_int():
-    assert isinstance(from_bin(10), int)
+def test_from_bin_returns_float():
+    # from_bin returns float to guarantee idempotence: to_bin(from_bin(k)) == k.
+    # Integer rounding breaks this for low-valued bins (geometric mean of
+    # [1.096, 1.201] is 1.148, rounds to 1, which bins to 0).
+    assert isinstance(from_bin(10), float)
+
+
+def test_bin_roundtrip_is_idempotent():
+    """Symmetrized eval feeds deserialize(serialize(x)) to the discriminator;
+    that is only a fixed point if re-binning a bin center returns its bin."""
+    for k in range(config.TIME_BINS):
+        assert to_bin(from_bin(k)) == k

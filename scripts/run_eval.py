@@ -16,6 +16,11 @@ review found the gate exploitable without it):
   realistic-timing garbage that never types the target can pass.
 - control: real-vs-real sits in [0.40, 0.60] -- outside that band the
   featurization or population is broken and no other number is meaningful.
+- symmetry: real and baseline sessions are round-tripped through
+  serialize->deserialize before featurization, so every discriminator input
+  carries bin-center timings. Without this the quantization alone separates
+  real from generated at 0.915 (measured, harness_control.json) and pass_model
+  is unreachable for any generator.
 """
 
 from __future__ import annotations
@@ -38,6 +43,7 @@ from typeshi.eval.discriminator import (
 from typeshi.eval.distributional import compare_sessions
 from typeshi.generate import generate
 from typeshi.labels import _levenshtein, compute_labels
+from typeshi.serialize import deserialize, serialize
 
 PASS_MODEL_MAX = 0.55
 PASS_MODEL_MIN = 0.40          # below-chance = leakage, never realism
@@ -231,9 +237,15 @@ def main() -> None:
         if not transcription_generation_ok(generated, target):
             rejected_wrong_text += 1
             continue
-        real.append(events)
+        # Both comparison sides must carry the same timing basis. Generations
+        # exit deserialize() with bin-center timings; raw-ms real sessions are
+        # separable from their own round-trips at 0.915 (harness_control.json),
+        # so real and baseline go through the same quantization before any
+        # featurization. Labels above stay computed on raw events.
+        real.append(deserialize(serialize(events)))
         fake.append(generated)
-        baseline.append(heuristic_baseline(target, wpm=labels.wpm or 60, seed=i))
+        baseline.append(deserialize(serialize(
+            heuristic_baseline(target, wpm=labels.wpm or 60, seed=i))))
 
     success_rate = len(real) / attempts if attempts else 0.0
 
