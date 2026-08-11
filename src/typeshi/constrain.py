@@ -55,19 +55,33 @@ class TranscriptionGrammarProcessor:
         eos = tok.eos_token_id
         self.eos_ids = torch.tensor([eos] if eos is not None else [])
 
+    def _cached(self, device):
+        # One host->device copy per generation instead of one per step
+        # (~1 MiB/step at a 260k vocab adds up on CUDA).
+        import torch
+
+        if getattr(self, "_device", None) != device:
+            self._device = device
+            self._dt = self.dt_ids.to(device)
+            self._event = self.event_ids.to(device)
+            self._event_eos = (
+                torch.cat([self.event_ids, self.eos_ids]).to(device)
+                if self.eos_ids.numel() else self._event
+            )
+        return self._dt, self._event, self._event_eos
+
     def __call__(self, input_ids, scores):
         import torch
 
+        dt, event, event_eos = self._cached(scores.device)
         generated = input_ids.shape[1] - self.prompt_len
         mask = torch.full_like(scores, float("-inf"))
         if generated % 2 == 0:
             # Event position. EOS only after the stream is non-empty.
-            allowed = self.event_ids
-            if generated > 0 and self.eos_ids.numel():
-                allowed = torch.cat([allowed, self.eos_ids])
+            allowed = event_eos if generated > 0 else event
         else:
-            allowed = self.dt_ids
-        mask[:, allowed.to(scores.device)] = 0
+            allowed = dt
+        mask[:, allowed] = 0
         return scores + mask
 
 
@@ -87,19 +101,33 @@ class GumbelSampleProcessor:
     """
 
     def __init__(self, temperature: float = 1.0, seed: int = 0) -> None:
+        self.temperature = max(temperature, 1e-5)
+        self.seed = seed
+        self.generator = None
+
+    def _gen(self, device):
+        # CUDA gets a device-local generator: CPU noise moved per step costs
+        # a vocab-sized host->device copy per token. MPS generators are not
+        # reliable, so everything else draws on CPU and moves (still exact).
         import torch
 
-        self.temperature = max(temperature, 1e-5)
-        self.generator = torch.Generator(device="cpu").manual_seed(seed)
+        if self.generator is None:
+            gen_device = device if device.type == "cuda" else "cpu"
+            self.generator = torch.Generator(device=gen_device).manual_seed(self.seed)
+        return self.generator
 
     def __call__(self, input_ids, scores):
         import torch
 
+        gen = self._gen(scores.device)
         uniform = torch.rand(
-            scores.shape, generator=self.generator, dtype=torch.float32
+            scores.shape, generator=gen, dtype=torch.float32,
+            device=gen.device,
         ).to(scores.device)
         # Explicit steps: method calls bind before unary minus, so the compact
         # one-liner clamps the WRONG intermediate and NaNs the whole vector.
         neg_log_u = -torch.log(uniform.clamp_min(1e-20))   # > 0
         gumbel = -torch.log(neg_log_u.clamp_min(1e-20))
-        return scores / self.temperature + gumbel
+        # .float(): under bf16 the division would round before promotion --
+        # harmless to the -inf mask, but not exact temperature sampling.
+        return scores.float() / self.temperature + gumbel

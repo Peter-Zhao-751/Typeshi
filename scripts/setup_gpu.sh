@@ -32,17 +32,24 @@ uv venv --python "${PYTHON_VERSION}"
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-echo "==> dependencies (torch here is the CUDA build, ~2.5 GB)"
-uv pip install -e ".[train,dev]"
-uv pip install scikit-learn
+echo "==> dependencies from the committed lockfile (torch is the CUDA build, ~2.5 GB)"
+# --locked installs the exact versions this codebase was tested against,
+# instead of re-resolving the loose ranges in pyproject.
+uv sync --locked --extra train --extra dev
 
 python - <<'PY'
+import sys
 import torch
-print(f"torch {torch.__version__} cuda={torch.cuda.is_available()} "
-      f"bf16={torch.cuda.is_available() and torch.cuda.is_bf16_supported()}")
-if torch.cuda.is_available():
+cuda = torch.cuda.is_available()
+bf16 = cuda and torch.cuda.is_bf16_supported()
+print(f"torch {torch.__version__} cuda={cuda} bf16={bf16}")
+if cuda:
     p = torch.cuda.get_device_properties(0)
     print(f"device: {p.name}, {p.total_memory/1e9:.0f} GB")
+if not (cuda and bf16):
+    # Without this gate a CPU-only torch wheel passes setup and the run
+    # silently trains on CPU fp32 for days instead of hours.
+    sys.exit("FATAL: CUDA with bf16 is required on this box; refusing to continue")
 PY
 
 echo "==> Aalto corpus (1.6 GB download, expands to 18 GB)"

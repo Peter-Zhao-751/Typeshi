@@ -100,7 +100,9 @@ def initialize_new_token_embeddings(model, base_model: str) -> int:
             index = torch.tensor(piece_ids, device=embed_in.device)
             embed_in[new_id] = embed_in.index_select(0, index).mean(0)
             if embed_out is not None and embed_out is not embed_in:
-                embed_out[new_id] = embed_out.index_select(0, index).mean(0)
+                # Under sharded placement the head can live on another device.
+                out_index = index.to(embed_out.device)
+                embed_out[new_id] = embed_out.index_select(0, out_index).mean(0)
             written += 1
     return written
 
