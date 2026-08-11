@@ -11,6 +11,103 @@ from typeshi.eval.distributional import timing_features
 _QUANTILES = [0.05, 0.25, 0.5, 0.75, 0.95]
 
 
+def serial_features(events: list[Event]) -> np.ndarray:
+    """Order-sensitive features of one session's gap sequence.
+
+    Marginal quantiles are blind to serial order by construction -- permuting
+    a session's gaps leaves every one of them unchanged, which is why the
+    first eval's serial-dependence gate scored 0.4975 (chance) against
+    timing-shuffled real sessions. Each feature here has a known null under
+    exchangeability, so shuffling drags it toward that null while real motor
+    behaviour (drift, bursts, word-boundary slowdowns, hold/gap coupling)
+    holds it away.
+
+    Nine values, always finite, fixed length regardless of session size.
+    """
+    press = np.array([e.press_time for e in events], dtype=float)
+    iki = np.diff(press) if len(press) > 1 else np.array([])
+    x = np.log1p(np.maximum(iki, 0.0))
+    n = x.size
+    out: list[float] = []
+
+    # Lag-k autocorrelation of log-gaps (null: 0).
+    for k in (1, 2, 3):
+        if n > k + 2 and x.std() > 1e-9:
+            out.append(float(np.corrcoef(x[:-k], x[k:])[0, 1]))
+        else:
+            out.append(0.0)
+
+    # Von Neumann ratio: mean squared successive difference over variance.
+    # Exchangeable null: 2. Positive serial dependence pulls it below.
+    if n > 3 and x.var() > 1e-12:
+        out.append(float(np.mean(np.diff(x) ** 2) / x.var()))
+    else:
+        out.append(2.0)
+
+    # Fast/slow Markov excess: P(fast -> fast) - P(fast). Null: 0.
+    # Real typing clusters fast keystrokes into bursts.
+    if n > 4:
+        fast = x <= np.median(x)
+        p_ff = float((fast[:-1] & fast[1:]).sum()) / max(int(fast[:-1].sum()), 1)
+        out.append(p_ff - float(fast.mean()))
+    else:
+        out.append(0.0)
+
+    # Local-to-global spread: mean std of 8-gap windows over the whole
+    # session's std. Clustered slow/fast segments push it below 1; a
+    # shuffle homogenises the windows back toward 1.
+    if n >= 16 and x.std() > 1e-9:
+        w = 8
+        locals_ = [x[i:i + w].std() for i in range(0, n - w + 1, w)]
+        out.append(float(np.mean(locals_) / x.std()))
+    else:
+        out.append(1.0)
+
+    # Drift: |first-half mean - second-half mean| in session-std units.
+    # Warmup and fatigue are real; a shuffle mixes the halves. Null: ~0.
+    if n >= 8 and x.std() > 1e-9:
+        h = n // 2
+        out.append(float(abs(x[:h].mean() - x[h:].mean()) / x.std()))
+    else:
+        out.append(0.0)
+
+    # Hold/gap coupling: corr(hold of key i, gap i -> i+1). Motor control
+    # ties them (rollover, deliberate keystrokes); a shuffle decouples.
+    if n > 3:
+        holds = np.array(
+            [
+                np.nan if e.release_time is None
+                else e.release_time - e.press_time
+                for e in events[:-1]
+            ],
+            dtype=float,
+        )
+        m = ~np.isnan(holds)
+        lh = np.log1p(np.maximum(holds[m], 0.0))
+        if m.sum() > 3 and lh.std() > 1e-9 and x[m].std() > 1e-9:
+            out.append(float(np.corrcoef(lh, x[m])[0, 1]))
+        else:
+            out.append(0.0)
+    else:
+        out.append(0.0)
+
+    # Word-boundary slowdown: mean log-gap into a word-initial key minus the
+    # mean elsewhere. Gap i runs from event i to i+1, so event i's char being
+    # a space marks gap i as word-entering. Chars stay put under the timing
+    # shuffle, so this collapses to ~0 there while real typing keeps it high.
+    if n > 3:
+        chars = [e.char for e in events[:-1]]
+        into_word = np.array([c == " " for c in chars])
+        if into_word.sum() >= 1 and (~into_word).sum() >= 3:
+            out.append(float(x[into_word].mean() - x[~into_word].mean()))
+        else:
+            out.append(0.0)
+    else:
+        out.append(0.0)
+
+    return np.nan_to_num(np.array(out, dtype=float))
+
+
 def featurize(events: list[Event], count_features: bool = True) -> np.ndarray:
     """Summary vector of a session's timing.
 
@@ -32,13 +129,7 @@ def featurize(events: list[Event], count_features: bool = True) -> np.ndarray:
         parts += [float(lx.mean()), float(lx.std())]
         if count_features:
             parts.append(float(len(x)))
-    # Autocorrelation of successive gaps: humans drift, naive samplers do not.
-    iki = f["iki"]
-    if iki.size > 2:
-        li = np.log1p(iki)
-        parts.append(float(np.corrcoef(li[:-1], li[1:])[0, 1]))
-    else:
-        parts.append(0.0)
+    parts += list(serial_features(events))
     return np.nan_to_num(np.array(parts, dtype=float))
 
 

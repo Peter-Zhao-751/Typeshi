@@ -15,6 +15,24 @@ def _lognormal_session(rng, n=120, mu=4.8, sigma=0.45):
     return events
 
 
+def _humanlike_session(rng, n=120):
+    """Synthetic session with the serial structure real typing has: AR(1)
+    drift in the gaps, extra latency entering each word, and hold times
+    coupled to the following gap. Shuffling its gaps destroys all three,
+    which is what the serial-dependence tests rely on."""
+    events, t, state = [], 0, 0.0
+    text = ("the quick brown fox jumps over it " * 6)[:n]
+    for i, ch in enumerate(text):
+        state = 0.8 * state + rng.normal(0, 0.25)   # AR(1) log-gap drift
+        gap = 130 * np.exp(state)
+        if ch == " ":
+            gap *= 1.9   # the gap appended after a space enters the next word
+        hold = max(int(30 + 0.35 * gap + rng.normal(0, 8)), 1)  # coupling
+        events.append(Event.key(ch, t, t + hold))
+        t += max(int(gap), 1)
+    return events
+
+
 def test_featurize_returns_fixed_length_vector():
     rng = np.random.default_rng(0)
     a = featurize(_lognormal_session(rng))
@@ -56,6 +74,58 @@ def test_discriminator_easily_catches_the_heuristic_baseline():
             for i in range(60)]
     _, acc = train_discriminator(real, fake, paired=False, seed=0)
     assert acc > 0.9
+
+
+def test_serial_features_have_fixed_length_and_are_finite():
+    from typeshi.eval.discriminator import serial_features
+
+    rng = np.random.default_rng(0)
+    a = serial_features(_humanlike_session(rng))
+    b = serial_features([Event.key("a", 0, 50)])  # degenerate: no gaps
+    assert a.shape == b.shape
+    assert np.isfinite(a).all() and np.isfinite(b).all()
+
+
+def test_serial_features_move_toward_null_under_shuffling():
+    """Shuffling gaps must drag each structure feature toward its
+    exchangeable null: autocorrelation to 0, von Neumann toward 2,
+    word-boundary contrast to 0."""
+    from typeshi.eval.discriminator import serial_features, shuffle_timing
+
+    rng = np.random.default_rng(0)
+    real = [_humanlike_session(rng, n=150) for _ in range(30)]
+    r = np.mean([serial_features(s) for s in real], axis=0)
+    s = np.mean(
+        [serial_features(shuffle_timing(x, seed=i)) for i, x in enumerate(real)],
+        axis=0,
+    )
+    lag1, von_neumann, word_boundary = 0, 3, 8
+    assert r[lag1] > 0.3 and abs(s[lag1]) < 0.15
+    assert r[von_neumann] < 1.5 and s[von_neumann] > 1.7
+    assert r[word_boundary] > 0.2 and abs(s[word_boundary]) < 0.1
+
+
+def test_discriminator_catches_timing_shuffled_sessions():
+    """The serial-dependence teeth gate, offline: real-vs-shuffled must be
+    separable well above chance. The first featurizer's single lag-1
+    autocorrelation scored 0.4975 on this comparison against real data."""
+    from typeshi.eval.discriminator import shuffle_timing
+
+    rng = np.random.default_rng(0)
+    real = [_humanlike_session(rng, n=150) for _ in range(60)]
+    shuffled = [shuffle_timing(s, seed=i) for i, s in enumerate(real)]
+    _, acc = train_discriminator(real, shuffled, paired=True, seed=0)
+    assert acc >= 0.75
+
+
+def test_serial_features_stay_near_chance_on_exchangeable_sessions():
+    """No false teeth: two batches from the SAME memoryless generator must
+    stay inseparable after the serial features are added."""
+    rng = np.random.default_rng(0)
+    a = [_lognormal_session(rng) for _ in range(60)]
+    b = [_lognormal_session(rng) for _ in range(60)]
+    _, acc = train_discriminator(a, b, paired=False, seed=0)
+    assert acc < 0.65
 
 
 def test_discriminator_cannot_separate_identical_distributions():
