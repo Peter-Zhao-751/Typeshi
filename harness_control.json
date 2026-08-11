@@ -1,0 +1,10 @@
+{
+  "sessions": 200,
+  "ceiling_full_features": 0.915,
+  "ceiling_timing_only": 0.9099999999999999,
+  "band": [
+    0.4,
+    0.55
+  ],
+  "interpretation": "outside the band, pass_model measures harness quantization, not the generator -- fix featurization before reading realism"
+}

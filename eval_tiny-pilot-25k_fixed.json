@@ -1,0 +1,19 @@
+{
+  "sessions_scored": 0,
+  "generation_attempts": 150,
+  "generation_success_rate": 0.0,
+  "generations_rejected_as_malformed": 0,
+  "generations_rejected_wrong_text": 150,
+  "sessions_skipped_not_held_out": 0,
+  "sessions_skipped_unencodable_prompt": 0,
+  "held_out_writers_only": true,
+  "temperature": 1.0,
+  "constrained_decoding": true,
+  "pass_discriminator_has_teeth": false,
+  "pass_serial_dependence_teeth": false,
+  "pass_model": false,
+  "pass_generation_validity": false,
+  "pass_control_near_chance": false,
+  "tier1_met": false,
+  "note": "only 0 valid generation(s); discriminator metrics need at least 5 pairs and were not computed"
+}

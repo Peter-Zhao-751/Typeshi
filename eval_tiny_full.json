@@ -1,0 +1,42 @@
+{
+  "sessions_scored": 200,
+  "generation_attempts": 200,
+  "generation_success_rate": 1.0,
+  "generations_rejected_as_malformed": 0,
+  "generations_rejected_wrong_text": 0,
+  "sessions_skipped_not_held_out": 0,
+  "sessions_skipped_unencodable_prompt": 0,
+  "held_out_writers_only": true,
+  "temperature": 1.0,
+  "constrained_decoding": true,
+  "distributional": {
+    "iki": {
+      "kl": 0.015207988829480747,
+      "frechet": 0.0003730053710723116
+    },
+    "hold": {
+      "kl": 0.05885171611850574,
+      "frechet": 0.004984163597874686
+    },
+    "pause": {
+      "kl": 0.4889672192373561,
+      "frechet": 0.0035327506675039482
+    },
+    "burst": {
+      "kl": 0.09020058731922251,
+      "frechet": 0.004454248274511168
+    }
+  },
+  "discriminator_accuracy_vs_model": 0.64,
+  "discriminator_accuracy_vs_model_timing_only": 0.6224999999999999,
+  "discriminator_accuracy_vs_heuristic_baseline": 0.9949999999999999,
+  "discriminator_accuracy_vs_shuffled_real": 0.5,
+  "discriminator_accuracy_real_vs_real_control": 0.445,
+  "pass_discriminator_has_teeth": true,
+  "pass_serial_dependence_teeth": false,
+  "pass_model": false,
+  "pass_generation_validity": true,
+  "pass_control_near_chance": true,
+  "tier1_met": false,
+  "note_below_chance": null
+}
