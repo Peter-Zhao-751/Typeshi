@@ -147,3 +147,30 @@ def test_seeding_gives_adjacent_time_bins_similar_embeddings():
         emb[ids[a]][None], emb[ids[b]][None]
     ).item()
     assert sim("<DT:50>", "<DT:51>") > sim("<DT:50>", "<DT:120>")
+
+
+def test_mode_markers_cover_each_curriculum():
+    from typeshi.train_motor import mode_markers
+
+    assert mode_markers("transcription") == ("<MODE:T>",)
+    assert mode_markers("composition") == ("<MODE:C>",)
+    assert set(mode_markers("both")) == {"<MODE:T>", "<MODE:C>"}
+
+
+def test_mode_filter_keeps_only_admitted_prompts():
+    """The Phase-2 'both' mode must keep the mixed curriculum intact while
+    the single modes stay mutually exclusive."""
+    from typeshi.train_motor import mode_markers
+
+    prompts = [
+        "<MODE:T><WPM:11><TARGET>hi<PROCESS>",
+        "<MODE:C><WPM:40><TARGET>essay<PROCESS>",
+    ]
+
+    def kept(mode):
+        markers = mode_markers(mode)
+        return [p for p in prompts if any(m in p for m in markers)]
+
+    assert kept("transcription") == [prompts[0]]
+    assert kept("composition") == [prompts[1]]
+    assert kept("both") == prompts

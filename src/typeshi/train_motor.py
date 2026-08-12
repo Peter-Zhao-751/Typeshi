@@ -163,6 +163,20 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
     )
 
 
+def mode_markers(mode: str) -> tuple[str, ...]:
+    """Prompt markers a training mode admits.
+
+    "both" exists for the Phase-2 curriculum (design spec section 5): KLiCKe
+    composition examples with a fraction of Aalto transcription mixed in
+    against motor forgetting, trained as one dataset.
+    """
+    return {
+        "transcription": ("<MODE:T>",),
+        "composition": ("<MODE:C>",),
+        "both": ("<MODE:T>", "<MODE:C>"),
+    }[mode]
+
+
 def _stdout_loss_log():
     """A callback that prints every log record as one plain line.
 
@@ -203,9 +217,20 @@ def main() -> None:
     ap.add_argument("--accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--mode", default="transcription",
-                    choices=["transcription", "composition"],
-                    help="train only on examples whose prompt carries this mode token")
+                    choices=["transcription", "composition", "both"],
+                    help="train only on examples whose prompt carries this "
+                         "mode token; 'both' keeps the mixed Phase-2 curriculum")
     ap.add_argument("--seed", type=int, default=config.DEFAULT_SEED)
+    ap.add_argument(
+        "--init-adapter",
+        type=Path,
+        default=None,
+        help="start from a finished checkpoint's adapter (LoRA + trained "
+             "embeddings) instead of fresh adapters -- the Phase-2 path: "
+             "continue the motor foundation on new data with a fresh "
+             "optimizer and schedule. Distinct from --resume, which restores "
+             "one interrupted run's full trainer state on the SAME data",
+    )
     ap.add_argument(
         "--resume",
         type=Path,
@@ -238,13 +263,26 @@ def main() -> None:
     model.resize_token_embeddings(len(tok), mean_resizing=False)
     seeded = initialize_new_token_embeddings(model, args.base)
     print(f"seeded {seeded} event-token embeddings from their sub-word pieces")
-    model = get_peft_model(
-        model,
-        build_peft_config(
-            train_embeddings=not args.freeze_embeddings,
-            tied_embeddings=bool(getattr(model.config, "tie_word_embeddings", False)),
-        ),
-    )
+    if args.init_adapter:
+        # The adapter's saved modules_to_save carry the trained embedding
+        # table, so they load OVER the seeded rows -- seeding still ran
+        # first so a partial/older adapter cannot leave raw-resized rows.
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(
+            model, str(args.init_adapter), is_trainable=True
+        )
+        print(f"initialized adapters from {args.init_adapter}")
+    else:
+        model = get_peft_model(
+            model,
+            build_peft_config(
+                train_embeddings=not args.freeze_embeddings,
+                tied_embeddings=bool(
+                    getattr(model.config, "tie_word_embeddings", False)
+                ),
+            ),
+        )
     model.print_trainable_parameters()
 
     if not args.freeze_embeddings:
@@ -264,12 +302,12 @@ def main() -> None:
                 "embedding_modules_to_save() for it"
             )
 
-    mode_marker = {"transcription": "<MODE:T>", "composition": "<MODE:C>"}[args.mode]
+    markers = mode_markers(args.mode)
     ds = load_dataset("json", data_files=str(args.data), split="train")
-    ds = ds.filter(lambda r: mode_marker in r["prompt"])
+    ds = ds.filter(lambda r: any(m in r["prompt"] for m in markers))
     if len(ds) == 0:
         raise SystemExit(
-            f"no examples with {mode_marker} in {args.data}; "
+            f"no examples with {' or '.join(markers)} in {args.data}; "
             "run scripts/build_dataset.py first"
         )
     # The dataset keeps its prompt/completion columns: TRL then masks the
