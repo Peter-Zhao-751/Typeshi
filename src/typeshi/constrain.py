@@ -12,9 +12,12 @@ The v2 stream grammar for transcription is a two-state machine:
 
     EVENT -> GAP -> EVENT -> GAP -> ...
 
-EOS is legal in BOTH states once the stream is non-empty: TRL appends EOS
-directly after the completion's final event token -- i.e. in the GAP slot --
-so the mask must allow that ending too, not just an EOS in EVENT position.
+EOS is legal ONLY in the GAP slot: TRL appends EOS directly after the
+completion's final event token, so that is where a trained model puts its
+stop mass -- and an EVENT-position EOS would end the stream on a dangling
+<DT:>, which deserialize() rejects. (The two workstreams fixed this
+independently; the local fix allowed both slots, the GPU fix narrowed it to
+the gap slot, and the narrower rule is what the class below implements.)
 
 Composition additions (<CUR:>, <SELDEL:>) emit plain-text digits and are NOT
 representable under this mask -- extend the state machine before using it for
