@@ -62,12 +62,31 @@ excess, drift, hold/gap coupling, word-boundary slowdown) took
 real-vs-shuffled from 0.4975 (chance — the gate could never pass) to 0.8075
 on real held-out sessions, with the control at 0.465.
 
-## What's left
+## Full corpus, and the lever exhaustion (2026-08-12)
 
-The plan's remaining lever is data: `data/processed_full` (1.95M examples,
-8.25× the subset, same held-out writers by construction) is built and ready.
-At the measured 39.6 samples/s an epoch is ~14h. The 0.0275 gap is small and
-diffuse; one full-corpus epoch is the obvious next experiment.
+One epoch on all 1.95M examples (20h23m, loss 2.601,
+`checkpoints/motor-full`, `eval_report_full.json`): marginals improved
+across the board — pause KL 0.92 → 0.46, iki 0.021 → 0.014, burst
+0.100 → 0.067, validity a perfect 200/200 — **and the gate did not move**:
+0.5775 → 0.60, flat within CV noise on the same held-out pool. A
+temperature sweep then closed the last cheap hypothesis: 1.0 → 0.60,
+0.9 → 0.66, 0.8 → 0.685 — monotone, cooling pulls generation variance
+below human variance and the discriminator reads exactly that.
+
+Phase-1 lever ledger:
+
+| Lever | Result |
+|---|---|
+| More data (8.25×) | marginals ↑, gate flat |
+| Longer training (3 epochs) | gate flat |
+| Lower temperature | actively harmful, monotone |
+| Stronger eval (serial features, codec-fair) | made the gate honest |
+
+Tier-1 stands at 4/5 with `pass_model` ~0.58–0.60 against ≤0.55. The
+remaining designed route is Phase-3 adversarial polish
+(discriminator-guided preference optimization); the residual signal is
+diffuse sequential structure (top GBM importance 0.092, hold/gap coupling),
+which none of the sampling- or scale-side levers touch.
 
 Infrastructure notes for that run: training peaks at 24.1 GiB (batch 32);
 `flash-linear-attention` + `causal-conv1d` must both import or decode drops
