@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import random
+import hashlib
 from typing import Iterable
 
 from typeshi.buffer import TextBuffer
@@ -81,9 +81,31 @@ def build_examples(
 def split_by_writer(
     writer_ids: Iterable[str], test_frac: float = 0.1, seed: int = 0
 ) -> tuple[set[str], set[str]]:
-    """Split held out by writer, never by session, so no writer leaks across."""
-    ids = sorted(set(writer_ids))
-    rng = random.Random(seed)
-    rng.shuffle(ids)
-    n_test = int(round(len(ids) * test_frac))
-    return set(ids[n_test:]), set(ids[:n_test])
+    """Split held out by writer, never by session, so no writer leaks across.
+
+    Each writer is assigned independently, by hashing its ID with the seed, so
+    the assignment does not depend on which other writers happen to be present.
+    That matters because the corpus is routinely built at several sizes
+    (`--limit-aalto`): under the previous shuffle-and-take-a-prefix scheme, a
+    subset build and a full build disagreed about nearly every writer, so a
+    checkpoint trained on the subset could not be compared against one trained
+    on the full corpus, and a writer held out from one was inside the other's
+    training set.
+
+    The cost is that the test fraction is now statistical rather than exact —
+    an unavoidable consequence of deciding each writer without reference to the
+    rest. At corpus scale the error is negligible (165k writers lands within a
+    few parts in ten thousand of `test_frac`); on tiny inputs it is visible.
+
+    `hashlib` is used rather than `hash()`, whose string seed is randomized per
+    process, which would reshuffle the holdout on every run.
+    """
+    threshold = test_frac * 2**64
+    train: set[str] = set()
+    test: set[str] = set()
+    for writer in sorted(set(writer_ids)):
+        digest = hashlib.blake2b(
+            f"{seed}:{writer}".encode(), digest_size=8
+        ).digest()
+        (test if int.from_bytes(digest, "big") < threshold else train).add(writer)
+    return train, test

@@ -1275,7 +1275,7 @@ git commit -m "feat: read digraph latencies off the model's <DT:> softmax"
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–5.
-- Produces: `frequency_control(latency_ms, bigram_counts) -> np.ndarray`, `biomechanical_table(latency_ms, keys=layout.KEYS) -> dict[str, float]`, `random_init_model(checkpoint) -> model`, `run(...) -> dict`, and a CLI writing `keyboard_probe_<name>.json`.
+- Produces: `frequency_control(latency_ms, bigram_counts) -> np.ndarray`, `biomechanical_table(latency_ms, keys=layout.KEYS) -> dict[str, float]`, `distance_law_by_class(latency_ms, keys=layout.KEYS) -> dict[str, dict[str, float]]`, `denoising_comparison(model_latency, stats, supports=(20, 200, 2000, 20000)) -> dict`, `random_init_model(checkpoint) -> model`, `analyze(...)`, `build_report(...) -> dict`, and a CLI writing `keyboard_probe_<name>.json`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1315,6 +1315,48 @@ def test_frequency_control_removes_a_planted_frequency_effect():
     assert np.nanstd(np.log(controlled)) < 0.1 * np.nanstd(np.log(latency))
 
 
+def test_distance_law_recovers_planted_per_class_slopes():
+    """Level 3. Distance means something different in each motor class, so the
+    fit must be per class -- a single global slope averages the three into
+    something that describes none of them."""
+    truth = layout.truth_coords()
+    slopes = {"alternate": 0.0, "same_hand": 0.06, "same_finger": 0.21}
+    latency = np.zeros((27, 27))
+    for i, a in enumerate(layout.KEYS):
+        for j, b in enumerate(layout.KEYS):
+            cls = layout.bigram_class(a, b)
+            d = float(np.linalg.norm(truth[i] - truth[j]))
+            latency[i, j] = np.exp(np.log(200.0) + slopes.get(cls, 0.0) * d)
+    law = kp.distance_law_by_class(latency)
+    # Double-centering removes an additive component of the planted slopes, so
+    # the absolute values shift; the ORDERING is what carries the finding.
+    assert law["alternate"]["slope"] < law["same_hand"]["slope"] < law["same_finger"]["slope"]
+    assert law["same_finger"]["correlation"] > law["alternate"]["correlation"]
+    assert law["same_finger"]["n"] > 0
+
+
+def test_denoising_comparison_contrasts_model_against_corpus_support():
+    """The central test: the corpus AUC improves with support because thin
+    cells are noise, and the model should reach the high-support figure
+    everywhere. Here the 'model' is a clean matrix and the 'corpus' is the same
+    matrix with noise added to its low-support cells, so the model's all-cell
+    AUC must beat the corpus's all-cell AUC."""
+    clean = reconstruct.synthetic_latency(seed=0)
+    rng = np.random.default_rng(0)
+    counts = rng.integers(5, 40_000, (27, 27))
+    noisy = clean * np.exp(rng.normal(0, 1.5, (27, 27)) * (counts < 2000))
+
+    class Stats:
+        latency_ms = noisy
+        counts = counts
+
+    result = kp.denoising_comparison(clean, Stats(), supports=(20, 2000))
+    assert result["model_auc_all_cells"] > 0.9
+    thin = [r for r in result["by_support"] if r["min_support"] == 20][0]
+    assert thin["model_auc_same_cells"] > thin["corpus_auc"]
+    assert all(r["cells"] > 0 for r in result["by_support"])
+
+
 def test_report_carries_every_scoring_level_and_labels_ground_truth_use():
     report = kp.build_report(
         model_latency=reconstruct.synthetic_latency(seed=0),
@@ -1323,8 +1365,9 @@ def test_report_carries_every_scoring_level_and_labels_ground_truth_use():
         bigram_counts=np.ones((27, 27), dtype=int),
         seed=0,
     )
-    assert set(report["model"]) >= {"biomechanical", "blind", "finger_aware",
-                                    "same_finger_auc", "frequency_controlled"}
+    assert set(report["model"]) >= {"biomechanical", "distance_law", "blind",
+                                    "finger_aware", "same_finger_auc",
+                                    "frequency_controlled"}
     assert report["model"]["finger_aware"]["uses_ground_truth"] is True
     assert report["model"]["blind"]["uses_ground_truth"] is False
     assert "empirical" in report and "random_init" in report
@@ -1383,6 +1426,97 @@ def biomechanical_table(latency_ms: np.ndarray, keys=layout.KEYS) -> dict[str, f
     return {name: float(np.mean(values)) for name, values in buckets.items()}
 
 
+def distance_law_by_class(latency_ms: np.ndarray, keys=layout.KEYS) -> dict:
+    """Distance slope fitted SEPARATELY within each motor class -- level 3.
+
+    The strongest and most interpretable result the corpus supports. Travel
+    distance is free when the hands alternate (they move in parallel), costs
+    something when one hand must travel, and costs most when one finger must:
+    measured -0.001 / +0.063 / +0.214 log-ms per key-width. It is also why a
+    single MDS embedding cannot work -- "distance" denotes three different
+    quantities depending on the hand relationship, so no one metric space fits.
+
+    A model that reproduces this ordering has learned the biomechanics rather
+    than the marginal statistics of English.
+    """
+    truth = layout.truth_coords()
+    residual, _, _, _ = reconstruct.double_center(
+        reconstruct.to_log_symmetric(latency_ms)
+    )
+    upper = np.triu_indices(len(keys), k=1)
+    dist = np.array([[float(np.linalg.norm(truth[i] - truth[j]))
+                      for j in range(len(keys))] for i in range(len(keys))])
+    cls = np.empty((len(keys), len(keys)), dtype=object)
+    for i, a in enumerate(keys):
+        for j, b in enumerate(keys):
+            cls[i, j] = layout.bigram_class(a, b)
+
+    out: dict[str, dict[str, float]] = {}
+    y, d, c = residual[upper], dist[upper], cls[upper]
+    for name in ("alternate", "same_hand", "same_finger"):
+        sel = (c == name) & ~np.isnan(y)
+        # Two points define a line exactly; a slope needs more than that to
+        # mean anything, and same_finger is the thinnest class.
+        if sel.sum() < 8:
+            out[name] = {"slope": float("nan"), "correlation": float("nan"),
+                         "n": int(sel.sum())}
+            continue
+        design = np.column_stack([d[sel], np.ones(int(sel.sum()))])
+        slope = float(np.linalg.lstsq(design, y[sel], rcond=None)[0][0])
+        out[name] = {
+            "slope": slope,
+            "correlation": float(np.corrcoef(d[sel], y[sel])[0, 1]),
+            "n": int(sel.sum()),
+        }
+    return out
+
+
+def denoising_comparison(model_latency: np.ndarray, stats,
+                         supports=(20, 200, 2000, 20000)) -> dict:
+    """Does the model deliver the high-support answer on EVERY cell?
+
+    This is the central test, and the only thing that justifies probing a model
+    rather than reading the corpus directly. The corpus's same-finger AUC climbs
+    from 0.59 to 0.90 as cells become well-measured, because thin cells are
+    dominated by writer and context noise -- the corpus's structural terms
+    explain only R^2=0.05 overall. The model returns a conditional expectation
+    rather than a sample mean, so if it has learned the structure its AUC over
+    all 729 cells should approach the corpus's HIGH-support figure, not its
+    all-cell one.
+
+    Reports the corpus AUC at each support level with its cell count, the
+    model's AUC over all cells, and the model's AUC restricted to each support
+    subset so the comparison is like-for-like.
+    """
+    truth_mask = reconstruct.true_same_finger()
+
+    def auc_of(latency):
+        residual, _, _, _ = reconstruct.double_center(
+            reconstruct.to_log_symmetric(latency)
+        )
+        return float(reconstruct.same_finger_auc(residual, truth_mask))
+
+    rows = []
+    for support in supports:
+        masked = np.array(stats.latency_ms, dtype=float, copy=True)
+        masked[stats.counts < support] = np.nan
+        model_subset = np.array(model_latency, dtype=float, copy=True)
+        model_subset[stats.counts < support] = np.nan
+        cells = int((stats.counts >= support).sum())
+        if cells < 60:   # too few pairs left for an AUC to mean anything
+            continue
+        rows.append({
+            "min_support": support,
+            "cells": cells,
+            "corpus_auc": auc_of(masked),
+            "model_auc_same_cells": auc_of(model_subset),
+        })
+    return {
+        "model_auc_all_cells": auc_of(model_latency),
+        "by_support": rows,
+    }
+
+
 def frequency_control(latency_ms: np.ndarray, bigram_counts: np.ndarray) -> np.ndarray:
     """Latencies with the log-bigram-frequency trend regressed out.
 
@@ -1415,6 +1549,7 @@ def analyze(latency: np.ndarray, bigram_counts: np.ndarray, seed: int) -> dict:
     residual, _, _, _ = reconstruct.double_center(reconstruct.to_log_symmetric(latency))
     return {
         "biomechanical": biomechanical_table(latency),
+        "distance_law": distance_law_by_class(latency),
         "same_finger_auc": reconstruct.same_finger_auc(
             residual, reconstruct.true_same_finger()
         ),
@@ -1506,6 +1641,9 @@ def main() -> None:
         bigram_counts=stats.bigram_counts,
         seed=args.seed,
     )
+    # The central test (spec 2.4): does the model deliver the high-support
+    # answer on cells the corpus is too thin to measure?
+    report["denoising"] = denoising_comparison(model_latency, stats)
     report["checkpoint"] = str(args.checkpoint)
     report["wpm"] = args.wpm
     report["hold_override"] = args.hold_override
@@ -1518,6 +1656,14 @@ def main() -> None:
         print(f"  {source:12s} blind rho={block['blind']['metrics']['distance_spearman']:+.3f} "
               f"sf_auc={block['same_finger_auc']:.3f} "
               f"hand={block['blind']['metrics']['hand_accuracy']:.3f}")
+    law = report["model"]["distance_law"]
+    print("  distance slope by class (expect alternate < same_hand < same_finger):")
+    for name in ("alternate", "same_hand", "same_finger"):
+        print(f"    {name:12s} {law[name]['slope']:+.4f}  (n={law[name]['n']})")
+    print(f"  model AUC over all cells: {report['denoising']['model_auc_all_cells']:.3f}")
+    for row in report["denoising"]["by_support"]:
+        print(f"    support>={row['min_support']:<6d} cells={row['cells']:<4d} "
+              f"corpus={row['corpus_auc']:.3f} model={row['model_auc_same_cells']:.3f}")
     if args.figure:
         write_figure(report, args.figure)
         print(f"wrote {args.figure}")
@@ -1530,7 +1676,7 @@ if __name__ == "__main__":
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_keyboard_probe.py -v`
-Expected: PASS, 3 tests
+Expected: PASS, 5 tests
 
 - [ ] **Step 6: Run it for real**
 

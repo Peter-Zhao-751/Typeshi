@@ -101,7 +101,12 @@ def verify(dest: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default=config.BASE_MODEL)
+    # NOT config.BASE_MODEL: the project default is now Qwen3.5-4B, whose
+    # multimodal wrapper loads as text-config model_type "qwen3_5_text" --
+    # a type the locked mlx-lm has no model class for, so `mlx_lm convert`
+    # rejects the staging model this script writes. The MLX path keeps the
+    # plain-attention Qwen2.5 until mlx-lm learns the hybrid architecture.
+    ap.add_argument("--base", default=config.QWEN25_BASE_MODEL)
     ap.add_argument("--out", type=Path, default=Path("models/base-typeshi-mlx"))
     ap.add_argument(
         "--staging",

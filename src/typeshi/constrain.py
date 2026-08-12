@@ -40,10 +40,16 @@ def _token_ids(tok, predicate) -> list[int]:
 class TranscriptionGrammarProcessor:
     """LogitsProcessor: only grammar-legal tokens are sampleable.
 
-    Alternates between event tokens (<c:h>, <BKSP:h>) and gap tokens (<DT:k>);
-    EOS becomes legal in BOTH positions once at least one event was emitted --
-    training places it in the gap slot (TRL appends it after the final event
-    token), and either ending leaves no dangling <DT:>.
+    Alternates between event tokens (<c:h>, <BKSP:h>) and gap tokens (<DT:k>).
+    EOS is legal exactly where a stream can end: in GAP position, right after
+    an event token -- the final keystroke has no press-to-press gap because
+    there is no next event, so serialized sessions end "...<c:h><EOS>". The
+    first version had this inverted (EOS legal in event position), which is
+    the one place a stream must NOT end: "...<DT:k><EOS>" is the dangling-gap
+    case deserialize() rejects. Measured effect of the inversion: a model
+    that put p=0.9998 on EOS at the true stop point was forced to keep
+    typing until the token budget ran out, and 199 of 200 eval generations
+    failed as wrong-text.
     """
 
     def __init__(self, tok, prompt_len: int) -> None:
@@ -69,31 +75,24 @@ class TranscriptionGrammarProcessor:
             self._device = device
             self._dt = self.dt_ids.to(device)
             self._event = self.event_ids.to(device)
-            self._event_eos = (
-                torch.cat([self.event_ids, self.eos_ids]).to(device)
-                if self.eos_ids.numel() else self._event
-            )
             self._dt_eos = (
                 torch.cat([self.dt_ids, self.eos_ids]).to(device)
                 if self.eos_ids.numel() else self._dt
             )
-        return self._dt, self._event, self._event_eos, self._dt_eos
+        return self._dt, self._event, self._dt_eos
 
     def __call__(self, input_ids, scores):
         import torch
 
-        dt, event, event_eos, dt_eos = self._cached(scores.device)
+        dt, event, dt_eos = self._cached(scores.device)
         generated = input_ids.shape[1] - self.prompt_len
         mask = torch.full_like(scores, float("-inf"))
         if generated % 2 == 0:
-            # Event position. EOS only after the stream is non-empty.
-            allowed = event_eos if generated > 0 else event
+            # Event position: a stream never ends needing another keystroke.
+            allowed = event
         else:
-            # Gap position. EOS is legal here too: TRL appends EOS directly
-            # after the completion's final event token, i.e. in THIS slot, so
-            # the mask must allow what training taught -- a from-scratch model
-            # has no pretrained prior to terminate from anywhere else. The
-            # stream then ends event-then-EOS with no dangling <DT:>.
+            # Gap position: continue with <DT:> toward the next event, or
+            # end the stream here -- the last keystroke has no gap.
             allowed = dt_eos
         mask[:, allowed] = 0
         return scores + mask

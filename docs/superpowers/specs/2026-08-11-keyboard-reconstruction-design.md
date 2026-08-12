@@ -42,19 +42,66 @@ belief, and it can be read at any position by teacher-forcing.
   Those were considered in brainstorming and deferred; they are separate specs.
 - Any change to training, eval, serialization, or the grammar.
 
-## 2. Expected shape of the result
+## 2. Expected shape of the result — revised against measurement
 
-Stated in advance so a null result is interpretable.
+The original version of this section predicted "a motor distance, not Euclidean
+geometry": strong hand separation, decent finger-column structure, noisier rows.
+Before Task 5 was built, the corpus was measured directly (all 1.97M sessions,
+82.8M digraphs). The prediction was right in direction and **much too optimistic
+in degree**, so it is replaced here by what was actually found.
 
-What gets recovered is a **motor** distance, not Euclidean geometry. Same-finger
-bigrams (`ed`, `ce`, `un`) are physically adjacent but among the slowest
-digraphs, so a naive latency→distance map pushes them apart. The prediction is
-therefore: strong left/right hand separation, decent finger-column structure,
-noisier row structure, and same-finger pairs as visible outliers.
+### 2.1 Two-dimensional geometry is a null
 
-Where the reconstruction disagrees with physical QWERTY is a finding about
-typing biomechanics, not a failure of the probe. §6 scores at three levels so
-that partial structure still reads as a result.
+| reconstruction | ρ vs true coordinates |
+|---|---|
+| synthetic matrix (pipeline ceiling, §7) | 0.89 |
+| corpus, all 27 keys | **0.03** |
+| corpus, left hand only (15 keys) | 0.31 |
+| corpus, right hand only (11 keys) | 0.21 |
+
+The pipeline is not at fault — Task 2 proves it recovers a known keyboard at
+0.89. The signal is not present in the form MDS requires, and §2.3 explains why.
+
+### 2.2 What the corpus does support
+
+- **The biomechanical ordering**, with no modelling at all:
+  `repeat 155 ms < alternate 197 < same_hand 217 < same_finger 226`.
+- **Same-finger detection**: AUC rises from 0.59 at support ≥ 20 to **0.90** at
+  support ≥ 20,000. The weak figure was sampling noise, not absent structure.
+- **A conditional distance law** (§2.3), the strongest and most interpretable
+  result available.
+
+### 2.3 Distance is conditional on the hand relationship
+
+Regressing the double-centred residual on key-to-key distance *within* each
+motor class:
+
+| class | slope (log-ms per key-width) | correlation |
+|---|---|---|
+| alternate | −0.001 | −0.01 |
+| same_hand | +0.063 | +0.25 |
+| same_finger | +0.214 | +0.43 |
+
+Travel distance is free when the hands alternate — the hands move in parallel —
+costs something when one hand must travel, and costs most when one finger must.
+This is textbook motor biomechanics recovered from nothing but token timing, and
+it is **why no single metric space can embed the matrix**: "distance" denotes
+three different quantities depending on the hand relationship. A global MDS is
+the wrong instrument for the board as a whole, which is exactly what the 0.03
+records.
+
+### 2.4 The central question for the model probe
+
+The corpus's structural terms explain **R² = 0.05** of the digraph residual; the
+other 95% is writer and context heterogeneity. The model, queried with a fixed
+carrier and fixed knobs, returns a *conditional expectation* — denoised by
+construction. The prediction, now sharp and testable:
+
+> the model should deliver the high-support answer for **every** cell, including
+> the rare bigrams the corpus can never measure at any sample size.
+
+Confirming or refuting that is the point of Tasks 5 and 6. It is also the only
+justification for probing a model rather than reading the corpus directly.
 
 ## 3. Components
 
@@ -227,17 +274,30 @@ Once single-checkpoint scoring works, both are re-runs of the same harness:
 
 ## 6. Scoring
 
-Three levels, so partial structure is still a result.
+Four levels, ordered by how well the corpus measurement (§2) says each holds.
+Every level is reported for the model, the corpus, and the random-init control
+side by side — the comparison, not the absolute number, is the result.
 
 1. **Biomechanical table** — mean latency by bigram class (`alternate` <
    `same_hand` < `same_finger`, with `repeat` fast and separate). Robust, needs
-   no MDS, and if the ordering is right the model has learned motor structure
-   even when the 2D map is noisy. The result most likely to hold.
-2. **Partial structure** — left/right hand linear separability, finger-column
-   ordering, row assignment accuracy, and same-finger detection AUC (which also
-   validates the blind pipeline's step 3).
-3. **Full geometry** — Spearman correlation of pairwise distances, mean position
-   error in key-widths, nearest-neighbour recall, each with the permutation test.
+   no MDS. **Holds in the corpus** at 155/197/217/226 ms.
+2. **Same-finger detection AUC** — how well the interaction residual ranks true
+   same-finger pairs. Needs no MDS, no alignment, no threshold. **Holds**, and
+   is support-dependent: 0.59 → 0.90 as cells become well-measured. The primary
+   test of the §2.4 denoising prediction, since the model should reach the
+   high-support figure on *all* cells rather than only frequent ones.
+3. **Conditional distance law** — the distance slope fitted separately within
+   `alternate`, `same_hand` and `same_finger`, plus each class's correlation.
+   **Strongly present** in the corpus (−0.001 / +0.063 / +0.214). A model that
+   reproduces this ordering has learned the biomechanics, not just the marginals.
+4. **Full geometry** — Spearman correlation of pairwise distances, mean position
+   error in key-widths, nearest-neighbour recall, each with the permutation
+   test, for the whole board and per hand. **Expected null** (§2.1: corpus 0.03
+   against a 0.89 ceiling). Reported anyway, beside the synthetic ceiling, so
+   the null is legible as a property of the data rather than of the analysis.
+
+Levels 1–3 carry the evidence. Level 4 is reported for completeness and is
+expected to fail; presenting it as anything else would misrepresent the finding.
 
 ### 6a. What the pipeline can deliver, measured
 

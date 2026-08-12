@@ -163,6 +163,30 @@ def build_peft_config(train_embeddings: bool = True, tied_embeddings: bool = Fal
     )
 
 
+def _stdout_loss_log():
+    """A callback that prints every log record as one plain line.
+
+    transformers couples log printing to its tqdm progress bar, which drops
+    the per-step dicts when stdout is redirected to a file -- exactly the
+    tee-to-logs/ setup the runbook prescribes and the dashboards parse. Only
+    active when stdout is not a tty, so interactive runs don't see doubles.
+    """
+    import sys
+
+    from transformers import TrainerCallback
+
+    class StdoutLossLog(TrainerCallback):
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if logs and not sys.stdout.isatty():
+                line = {
+                    k: f"{v:.4}" if isinstance(v, float) else v
+                    for k, v in logs.items()
+                }
+                print(line, flush=True)
+
+    return StdoutLossLog()
+
+
 def main() -> None:
     import torch
     from datasets import load_dataset
@@ -182,6 +206,16 @@ def main() -> None:
                     choices=["transcription", "composition"],
                     help="train only on examples whose prompt carries this mode token")
     ap.add_argument("--seed", type=int, default=config.DEFAULT_SEED)
+    ap.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="resume from a trainer checkpoint dir (checkpoint-N); restores "
+             "model, optimizer, scheduler, and RNG, then trains on toward "
+             "--epochs. The LR schedule is recomputed over the NEW horizon, "
+             "so extending a finished run re-warms from the schedule's "
+             "mid-point rather than continuing the old decay",
+    )
     ap.add_argument(
         "--freeze-embeddings",
         action="store_true",
@@ -246,6 +280,7 @@ def main() -> None:
         model=model,
         train_dataset=ds,
         processing_class=tok,
+        callbacks=[_stdout_loss_log()],
         args=SFTConfig(
             output_dir=str(args.out),
             num_train_epochs=args.epochs,
@@ -260,7 +295,9 @@ def main() -> None:
             max_length=2048,
         ),
     )
-    trainer.train()
+    trainer.train(
+        resume_from_checkpoint=str(args.resume) if args.resume else None
+    )
     trainer.save_model(str(args.out))
     tok.save_pretrained(str(args.out))
 

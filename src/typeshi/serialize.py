@@ -140,6 +140,21 @@ def serialize(events: list[Event], prev_press_time: int | float | None = None) -
     return "".join(parts)
 
 
+def codec_roundtrip(events: list[Event]) -> list[Event]:
+    """Events -> tokens -> events: projects a session onto the codec's grid.
+
+    Every timing in a serialized session lives on the 128-bin log grid, so a
+    generated session can only ever take ~40 distinct hold values where raw
+    corpus sessions take hundreds. A discriminator fed raw real sessions
+    against generated ones separates them on that comb alone -- measured
+    0.8275 paired CV falling to 0.6200 once the real side was roundtripped,
+    with 0.438 of the GBM's importance on a single hold quantile. Comparing
+    realism in-representation requires both sides on the grid; this helper is
+    that projection. Idempotent: bin centers map to themselves.
+    """
+    return deserialize(serialize(events))
+
+
 def deserialize(text: str) -> list[Event]:
     tokens = list(_TOKEN_RE.finditer(text))
     consumed = sum(len(m.group(0)) for m in tokens)
