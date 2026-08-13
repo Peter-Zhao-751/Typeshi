@@ -53,12 +53,22 @@ class ConvergenceProcessor:
     """
 
     def __init__(self, tok, prompt_len: int, target: str,
-                 excursion_budget: int = 8) -> None:
+                 excursion_budget: int = 4, resolve_progress: int = 2) -> None:
         import torch
 
         self.prompt_len = prompt_len
         self.target = target
         self.budget = excursion_budget
+        # Oscillation guard, added after the first live probe: the phase-2
+        # model WANTS its own essay, so with excursions always open it typed
+        # wrong -> was forced back -> typed wrong again, burning the whole
+        # token budget at ~50% BKSP (1/5 converged). Once a forced
+        # resolution completes, excursions stay closed until
+        # `resolve_progress` on-path characters are typed: every cycle nets
+        # progress, so convergence is bounded, adversarial samplers included.
+        self.resolve_progress = resolve_progress
+        self._resolving = False
+        self._cooldown = 0
         self.buffer = TextBuffer()
         self._consumed = 0  # generated tokens already applied to the buffer
 
@@ -111,14 +121,35 @@ class ConvergenceProcessor:
             self._dev[key] = tensor.to(device)
         return self._dev[key]
 
+    def _depth(self) -> int:
+        text = self.buffer.text
+        return len(text) - _common_prefix_len(text, self.target)
+
     def _apply_new_tokens(self, ids: list[int]) -> None:
-        """Replays tokens the sampler committed since the last call."""
+        """Replays committed tokens and advances the guard state.
+
+        State lives HERE, derived from the token stream, not in __call__ --
+        the mask for a position must depend only on what was emitted before
+        it, never on how many times the processor happened to be invoked.
+
+        The cooldown arms on ANY backspace that lands on-path, not just
+        budget-forced ones: shallow type-one-wrong/delete loops below the
+        budget are otherwise free to oscillate forever, and so is deleting
+        correct text and retyping it.
+        """
         for i in ids:
             kind = self._id_kind.get(i)
             if kind == "key":
                 self.buffer._insert(self._id_char[i])
+                if self._depth() == 0 and self._cooldown > 0:
+                    self._cooldown -= 1
+                elif self._depth() >= self.budget:
+                    self._resolving = True
             elif kind == "bksp":
                 self.buffer._backspace()
+                if self._depth() == 0:
+                    self._resolving = False
+                    self._cooldown = self.resolve_progress
             # dt / anything else: no buffer effect
 
     def __call__(self, input_ids, scores):
@@ -138,25 +169,37 @@ class ConvergenceProcessor:
             if self.buffer.text == self.target and self._eos.numel():
                 allowed.append(self._to("eos", self._eos, device))
         else:
-            # EVENT position.
+            # EVENT position. All guard state was advanced token-by-token in
+            # _apply_new_tokens; this branch only reads it.
             text = self.buffer.text
-            depth = len(text) - _common_prefix_len(text, self.target)
+            depth = self._depth()
+
             allowed = []
             if depth == 0 and len(text) < len(self.target):
                 needed = self.target[len(text)]
                 allowed.append(
                     self._to(f"c:{needed}", self._per_char[needed], device)
                 )
-            if depth < self.budget:
-                # Excursions (typos) stay open until the budget is spent.
+            excursions_open = (
+                depth < self.budget and not self._resolving and self._cooldown == 0
+            )
+            if excursions_open:
                 allowed.append(self._to("keys", self._all_keys, device))
-            if text:
+            if text and not (self._cooldown > 0 and depth == 0):
+                # No BKSP while repaying progress on-path: deleting correct
+                # text there would reopen the oscillation loop.
                 allowed.append(self._to("bksp", self._bksp, device))
-            if not allowed:  # buffer empty, at budget: only typing remains
-                needed = self.target[0]
-                allowed.append(
-                    self._to(f"c:{needed}", self._per_char[needed], device)
-                )
+            if not allowed:
+                # Corner states must still offer something legal: type the
+                # next needed char if the target is unfinished, else undo one
+                # char (retype cycle) -- never an off-path extension.
+                if len(text) < len(self.target):
+                    needed = self.target[len(text)]
+                    allowed.append(
+                        self._to(f"c:{needed}", self._per_char[needed], device)
+                    )
+                else:
+                    allowed.append(self._to("bksp", self._bksp, device))
 
         for ids in allowed:
             mask[:, ids] = 0
