@@ -133,7 +133,14 @@ class ConvergenceProcessor:
     """
 
     def __init__(self, tok, prompt_len: int, target: str,
-                 excursion_budget: int = 4, resolve_progress: int = 2) -> None:
+                 excursion_budget: int = 4, resolve_progress: int = 2,
+                 written_so_far: str = "", cursor: int | None = None) -> None:
+        """`written_so_far`/`cursor` seed the buffer for a CONTINUATION
+        window (windowed generation, matching how composition was trained:
+        512-event windows with a <WRITTEN> tail). A continuation starts in
+        GAP slot so the model emits the window-boundary <DT:> itself --
+        format v2 allows a leading gap on continuation windows, and
+        fabricating that gap host-side would be invented timing."""
         import torch
 
         self.prompt_len = prompt_len
@@ -153,9 +160,9 @@ class ConvergenceProcessor:
         self.resolve_progress = resolve_progress
         self._resolving = False
         self._cooldown = 0
-        self.buffer = TextBuffer()
+        self.buffer = TextBuffer(written_so_far, cursor)
         self._consumed = 0  # generated tokens already applied to the buffer
-        self._slot = "event"  # event | gap; ops occupy one event slot
+        self._slot = "gap" if written_so_far else "event"
         self._op: dict | None = None  # in-flight <CUR:/<SELDEL: state
         self._depth_key: str | None = None
         self._depth_val = 0

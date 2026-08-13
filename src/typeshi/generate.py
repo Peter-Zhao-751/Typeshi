@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from typeshi.buffer import TextBuffer
 from typeshi.dataset import build_prompt
 from typeshi.events import Event
 from typeshi.labels import SessionLabels
@@ -89,3 +90,121 @@ def generate(
     # an otherwise-legal stream.
     text = re.sub(r"<DT:\d+>$", "", text)
     return deserialize(text)
+
+
+def _parse_window(text: str) -> list[Event]:
+    """Deserializes a window that may end mid-structure.
+
+    A per-window token budget can cut inside an op spelling ("<CUR:1") or on
+    a dangling gap; trailing fragments carry no completed event, so trim
+    back to the last parseable boundary instead of failing the window.
+    """
+    text = re.sub(r"<DT:\d+>$", "", text)
+    while text:
+        try:
+            return deserialize(text)
+        except ValueError:
+            cut = text.rfind("<")
+            if cut <= 0:
+                return []
+            text = re.sub(r"<DT:\d+>$", "", text[:cut])
+    return []
+
+
+def _shift_events(events: list[Event], offset) -> list[Event]:
+    """Rebase a window's clock-zero events onto the running session clock."""
+    import dataclasses
+
+    out = []
+    for e in events:
+        hold = None if e.release_time is None else e.release_time - e.press_time
+        press = e.press_time + offset
+        out.append(dataclasses.replace(
+            e, press_time=press,
+            release_time=None if hold is None else press + hold,
+        ))
+    return out
+
+
+def generate_windowed(
+    model,
+    tok,
+    target_text: str,
+    labels: SessionLabels,
+    temperature: float = 1.0,
+    seed: int = 0,
+    window_events: int = 512,
+    max_windows: int | None = None,
+) -> list[Event]:
+    """Convergence-guaranteed composition in training-shaped windows.
+
+    Composition was trained on windows of at most 512 events with a
+    <WRITTEN> tail carrying buffer state; asking the model for an 800-event
+    essay in ONE generation is out of its trained distribution, and the
+    first Tier-2 run measured the price: 24% of longer essays burned their
+    budget fighting the mask before converging. Each window here re-prompts
+    exactly as training did (build_prompt with written_so_far + cursor), the
+    processor's buffer is pre-seeded, and continuation windows open in GAP
+    slot so the model emits the boundary <DT:> itself.
+
+    Returns the stitched event stream, guaranteed to type `target_text`;
+    raises ValueError if the window allowance runs out unconverged (a
+    counted failure, mirroring generate()).
+    """
+    import torch
+
+    from transformers import LogitsProcessorList
+
+    from typeshi.constrain import GumbelSampleProcessor
+    from typeshi.converge import ConvergenceProcessor
+
+    if max_windows is None:
+        # ~2 events per char at 2 tokens each, plus excursion room, in
+        # window-sized pieces; +2 windows of pure slack.
+        max_windows = 2 + (4 * len(target_text)) // window_events
+
+    events: list[Event] = []
+    written = ""
+    cursor: int | None = None
+    for w in range(max_windows):
+        torch.manual_seed(seed + w)
+        prompt = build_prompt(target_text, labels, "composition",
+                              written_so_far=written,
+                              cursor=cursor if written else None)
+        inputs = tok(prompt, return_tensors="pt").to(model.device)
+        proc = ConvergenceProcessor(
+            tok, inputs["input_ids"].shape[1], target_text,
+            written_so_far=written, cursor=cursor,
+        )
+        chain = LogitsProcessorList(
+            [proc, GumbelSampleProcessor(temperature=temperature, seed=seed + w)]
+        )
+        out = model.generate(
+            **inputs, do_sample=False,
+            max_new_tokens=2 * window_events + 64,
+            pad_token_id=tok.pad_token_id, logits_processor=chain,
+        )
+        new_ids = out[0][inputs["input_ids"].shape[1]:].tolist()
+        eos_ids = {i for i in [tok.eos_token_id, tok.pad_token_id] if i is not None}
+        for j, token_id in enumerate(new_ids):
+            if token_id in eos_ids:
+                new_ids = new_ids[:j]
+                break
+        window = _parse_window(tok.decode(new_ids, skip_special_tokens=False))
+        if not window:
+            raise ValueError(f"window {w} produced no events")
+        offset = events[-1].press_time if events else 0
+        events += _shift_events(window, offset)
+
+        # Authoritative state: replay everything from scratch each window --
+        # cheaper than proving incremental state equal to the processor's.
+        buf = TextBuffer()
+        for e in events:
+            buf.apply(e)
+        written, cursor = buf.text, buf.cursor
+        if written == target_text:
+            return events
+    raise ValueError(
+        f"did not converge within {max_windows} windows "
+        f"({len(events)} events, {len(written)}/{len(target_text)} chars on buffer)"
+    )

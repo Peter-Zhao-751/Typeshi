@@ -27,7 +27,7 @@ from typeshi.eval.discriminator import (
 from typeshi.eval.distributional import compare_sessions
 from typeshi.eval.knobs import knob_fidelity, realized_labels
 from typeshi.eval.signatures import compare_signatures
-from typeshi.generate import generate
+from typeshi.generate import generate_windowed
 from typeshi.labels import compute_labels
 from typeshi.serialize import codec_roundtrip, unsupported_chars
 
@@ -87,16 +87,16 @@ def main() -> None:
             labels = compute_labels(events, final_text)
             attempts += 1
             try:
-                gen = generate(
-                    model, tok, target, labels, mode="composition",
-                    temperature=args.temperature,
-                    max_new_tokens=6 * len(target) + 512,
-                    seed=attempts, constrained=True,
+                # Windowed: matches the 512-event training windows -- the
+                # single-shot path measured 76% convergence on long essays.
+                gen = generate_windowed(
+                    model, tok, target, labels,
+                    temperature=args.temperature, seed=attempts,
                 )
             except ValueError:
-                break
+                break  # window allowance exhausted: a counted failure
             if replay(gen) != target:
-                break  # budget-exhausted non-convergence: a counted failure
+                break  # defensive; generate_windowed raises instead
             converged += 1
             real.append(events)
             fake.append(gen)

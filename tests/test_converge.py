@@ -404,3 +404,54 @@ def test_stage2_random_walks_converge_and_replay_to_target():
         assert terminated, f"trial {trial} never converged in 800 tokens"
         text = "".join(tok.id_to_token[i] for i in walk)
         assert replay(deserialize(text)) == target
+
+
+def test_continuation_window_seeds_buffer_and_opens_in_gap_slot():
+    """Windowed generation: the processor resumes mid-essay. The first slot
+    is GAP (the model emits the window-boundary <DT:> itself, as trained)
+    and the needed key is the one after the written prefix."""
+    tok = FakeTok()
+    proc = ConvergenceProcessor(
+        tok, PROMPT_LEN, "hi ho", written_so_far="hi ", cursor=3
+    )
+    legal = _mask_tokens(proc, tok, [])
+    assert any(t.startswith("<DT:") for t in legal)   # boundary gap
+    assert "<EOS>" not in legal                       # not converged yet
+
+    walk = [_tid(tok, "<DT:5>")]                      # boundary gap emitted
+    proc2 = ConvergenceProcessor(
+        tok, PROMPT_LEN, "hi ho", written_so_far="hi ", cursor=3
+    )
+    legal = _mask_tokens(proc2, tok, walk)
+    assert any(t.startswith("<h:") for t in legal)    # target[3] == 'h'
+
+
+def test_continuation_eos_still_requires_full_target():
+    tok = FakeTok()
+    proc = ConvergenceProcessor(
+        tok, PROMPT_LEN, "hi", written_so_far="h", cursor=1
+    )
+    walk = [_tid(tok, "<DT:5>"), _tid(tok, "<i:5>")]  # completes the target
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<EOS>" in legal
+
+
+def test_window_parse_trims_dangling_structure():
+    from typeshi.generate import _parse_window
+
+    good = "<h:5><DT:5><i:5>"
+    assert len(_parse_window(good)) == 2
+    assert len(_parse_window(good + "<DT:9>")) == 2          # dangling gap
+    assert len(_parse_window(good + "<DT:9><CUR:1")) == 2    # mid-op cut
+    assert _parse_window("<CUR:") == []
+
+
+def test_window_shift_preserves_holds_and_gaps():
+    from typeshi.events import Event
+    from typeshi.generate import _shift_events
+
+    ev = [Event.key("a", 10, 60), Event.key("b", 100, 130)]
+    shifted = _shift_events(ev, 1000)
+    assert [e.press_time for e in shifted] == [1010, 1100]
+    assert shifted[0].release_time - shifted[0].press_time == 50
+    assert shifted[1].press_time - shifted[0].press_time == 90
