@@ -1,0 +1,87 @@
+{
+  "sessions_scored": 10,
+  "generation_attempts": 11,
+  "convergence_rate": 0.9090909090909091,
+  "temperature": 1.0,
+  "constrained_convergent_decoding": true,
+  "codec_roundtripped_real": true,
+  "held_out_writers_only": true,
+  "discriminator_accuracy_vs_model": 1.0,
+  "discriminator_accuracy_vs_shuffled_real": 0.9,
+  "discriminator_accuracy_real_vs_real_control": 0.4,
+  "distributional": {
+    "iki": {
+      "kl": 0.17238661141227107,
+      "frechet": 0.2440488201482234
+    },
+    "hold": {
+      "kl": 0.0809656336469389,
+      "frechet": 0.016178018402977886
+    },
+    "pause": {
+      "kl": 0.14176380130842642,
+      "frechet": 0.0007413089946544109
+    },
+    "burst": {
+      "kl": 0.5921516441424792,
+      "frechet": 0.8266441083254227
+    }
+  },
+  "signatures": {
+    "pause_clause_boundary": {
+      "kl": 1.1924289322297024,
+      "frechet": 0.10578046676583194
+    },
+    "pause_word_boundary": {
+      "kl": 0.2572618636507348,
+      "frechet": 0.1259177221567217
+    },
+    "pause_within_word": {
+      "kl": 0.17522291006909707,
+      "frechet": 0.0940056453808201
+    },
+    "p_burst": {
+      "kl": 0.8183709859033466,
+      "frechet": 1.399254481745935
+    },
+    "revision_episode_lengths": {
+      "kl": 1.1661320677078861,
+      "frechet": 0.013871505880808398
+    },
+    "bksp_frac": {
+      "kl": 18.928198005035284,
+      "frechet": 0.0014328210407691506
+    },
+    "cursor_count": {
+      "kl": 17.603648899569492,
+      "frechet": 6.63643992820367
+    },
+    "seldel_count": {
+      "kl": 9.167188002528412,
+      "frechet": 1.6836559070873685
+    }
+  },
+  "knob_fidelity": {
+    "wpm": {
+      "r": 0.47111863145557537,
+      "mae": 10.12935979769136
+    },
+    "corrected_error_rate": {
+      "r": -0.14908735949040497,
+      "mae": 0.1456646871835106
+    },
+    "uncorrected_error_rate": {
+      "r": null,
+      "mae": 0.0
+    },
+    "revision_rate": {
+      "r": 0.26611843033232563,
+      "mae": 0.008362280067737185
+    }
+  },
+  "pass_convergence": false,
+  "pass_model": false,
+  "pass_serial_dependence_teeth": true,
+  "pass_control_near_chance": true,
+  "tier2_provisional_met": false
+}
