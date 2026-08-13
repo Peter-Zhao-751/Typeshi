@@ -27,12 +27,13 @@ def generate(
     typeshi.constrain): every emission is a legal alternating stream, so
     failures become about CONTENT and TIMING rather than falling out of the
     token vocabulary -- the dominant raw failure mode (64%) in the 0.8B
-    shakedown. Composition mode is not yet representable under the mask.
+    shakedown. Composition under the mask uses the convergence processor
+    (typeshi.converge): the stream is GUARANTEED to type `target_text`
+    exactly, with typo/correction excursions bounded by its budget --
+    free-running composition composes its own essay otherwise (measured:
+    2/5 exact starts on held-out KLiCKe prompts).
     """
     import torch
-
-    if constrained and mode != "transcription":
-        raise ValueError("constrained decoding only supports transcription")
 
     torch.manual_seed(seed)
     prompt = build_prompt(target_text, labels, mode)
@@ -41,12 +42,17 @@ def generate(
     from transformers import LogitsProcessorList
 
     from typeshi.constrain import GumbelSampleProcessor, TranscriptionGrammarProcessor
+    from typeshi.converge import ConvergenceProcessor
 
     # Sampling happens via Gumbel-argmax in the processor chain, NOT via
     # do_sample: torch.multinomial on MPS can emit zero-probability tokens
     # (see GumbelSampleProcessor), which corrupted most masked generations.
     chain = []
-    if constrained:
+    if constrained and mode == "composition":
+        chain.append(
+            ConvergenceProcessor(tok, inputs["input_ids"].shape[1], target_text)
+        )
+    elif constrained:
         chain.append(TranscriptionGrammarProcessor(tok, inputs["input_ids"].shape[1]))
     chain.append(GumbelSampleProcessor(temperature=temperature, seed=seed))
 
