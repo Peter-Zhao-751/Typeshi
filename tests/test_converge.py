@@ -208,3 +208,199 @@ def test_simulated_walks_always_terminate_on_the_exact_target():
         assert terminated, f"trial {trial} never converged in 400 tokens"
         text = "".join(tok.id_to_token[i] for i in walk)
         assert replay(deserialize(text)) == target
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: <CUR:pos> / <SELDEL:a-b> under the guarantee. These ops are plain
+# text through the base tokenizer, so the processor's digit-level machine is
+# what makes an out-of-bounds position UNREPRESENTABLE, not merely unlikely.
+
+
+class OpTok(FakeTok):
+    """FakeTok plus the per-char pieces cursor ops decode through (mirrors
+    tiny_tokenizer, where every text char is its own piece). The plain
+    FakeTok has no encode(), which is exactly the stage-1-only contract."""
+
+    def __init__(self):
+        super().__init__()
+        extra = sorted(set("<CUR:SELDEL->0123456789"))
+        base = self.unk_token_id + 1
+        for k, ch in enumerate(extra):
+            self.vocab[ch] = base + k
+        self.eos_token_id = base + len(extra)
+        self.unk_token_id = base + len(extra) + 1
+        self.id_to_token = {i: t for t, i in self.vocab.items()}
+
+    def encode(self, s, add_special_tokens=False):
+        return [self.vocab[c] for c in s]
+
+
+def test_stage1_tokenizer_without_atoms_never_offers_cursor_ops():
+    tok = FakeTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi")
+    assert proc._ops is None  # no encode() -> ops stay masked out entirely
+
+
+def test_cur_digits_are_masked_to_live_buffer_positions():
+    """A cursor to 10 in a 1-char buffer must be unrepresentable: after
+    '1' the only continuation is '>', because 10..19 all exceed len == 1."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi")
+    walk = [_tid(tok, "<h:5>"), _tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<" in legal                       # ops open with excursions
+    walk += [tok.vocab[c] for c in "<CUR:"]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"0", "1"}                # 0 <= pos <= len(buffer) == 1
+    walk.append(tok.vocab["1"])
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {">"}
+
+
+def test_cur_completion_moves_the_caret_and_inserts_follow_it():
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi")
+    walk = [_tid(tok, "<h:5>"), _tid(tok, "<DT:5>")]
+    walk += [tok.vocab[c] for c in "<CUR:0"]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {">"}                     # canonical: no leading zeros
+    walk.append(tok.vocab[">"])
+    legal = _mask_tokens(proc, tok, walk)     # a completed op is one event
+    assert any(t.startswith("<DT:") for t in legal) and "<EOS>" not in legal
+    assert proc.buffer.text == "h" and proc.buffer.cursor == 0
+    walk += [_tid(tok, "<DT:5>"), _tid(tok, "<x:5>")]
+    _mask_tokens(proc, tok, walk)
+    assert proc.buffer.text == "xh"           # inserted AT the cursor
+
+
+def test_seldel_needs_a_nonempty_buffer():
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi")
+    walk = [tok.vocab["<"]]                   # empty buffer, op opened
+    legal = _mask_tokens(proc, tok, walk)
+    assert "C" in legal and "S" not in legal  # CUR:0 valid; no range to delete
+
+
+def test_seldel_bounds_and_on_path_landing():
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi", excursion_budget=3)
+    walk = []
+    for c in "hix":                           # h, i on path; x an excursion
+        walk += [_tid(tok, f"<{c}:5>"), _tid(tok, "<DT:5>")]
+    walk += [tok.vocab[c] for c in "<SELDEL:"]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"0", "1", "2"}           # a < b <= 3 needs a <= 2
+    walk.append(tok.vocab["2"])
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"-"}                     # 20.. all exceed 2; a=2 valid
+    walk.append(tok.vocab["-"])
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"3"}                     # b in (a, len] == (2, 3]
+    walk += [tok.vocab["3"]]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {">"}
+    walk.append(tok.vocab[">"])
+    legal = _mask_tokens(proc, tok, walk)
+    assert proc.buffer.text == "hi" and proc.buffer.cursor == 2
+    assert "<EOS>" in legal                   # landed exactly on the target
+
+
+def test_seldel_to_budget_forces_cursor_to_end_resolution():
+    """SELDEL can strand the caret at 0 while off-path, where BKSP no-ops;
+    the mask must force <CUR:len> (and nothing else) so resolution can
+    proceed, then BKSP-only until the buffer is back on-path."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(
+        tok, PROMPT_LEN, "abcd", excursion_budget=1, resolve_progress=1
+    )
+    walk = []
+    for c in "abc":
+        walk += [_tid(tok, f"<{c}:5>"), _tid(tok, "<DT:5>")]
+    walk += [tok.vocab[c] for c in "<SELDEL:0-2>"]
+    _mask_tokens(proc, tok, walk)
+    assert proc.buffer.text == "c" and proc.buffer.cursor == 0
+    walk += [_tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"<"}                     # forced: only the CUR opener
+    walk += [tok.vocab[c] for c in "<CUR:"]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"1"}                     # exactly len(buffer)
+    walk += [tok.vocab["1"], tok.vocab[">"], _tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal and all(t.startswith("<BKSP:") for t in legal)
+    walk += [_tid(tok, "<BKSP:5>"), _tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)     # resolved -> cooldown: needed key
+    assert legal and all(t.startswith("<a:") for t in legal)
+
+
+def test_cooldown_with_mid_buffer_cursor_forces_return_to_end():
+    """A mid-buffer SELDEL that lands on-path arms the cooldown with the
+    caret inside the text, where the needed key would corrupt the buffer;
+    repayment must route through cursor-to-end first."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(
+        tok, PROMPT_LEN, "abcd", excursion_budget=2, resolve_progress=1
+    )
+    walk = []
+    for c in "abxc":                          # 'x' is a mid-word excursion
+        walk += [_tid(tok, f"<{c}:5>"), _tid(tok, "<DT:5>")]
+    walk += [tok.vocab[c] for c in "<SELDEL:2-3>"]
+    _mask_tokens(proc, tok, walk)
+    assert proc.buffer.text == "abc" and proc.buffer.cursor == 2
+    walk += [_tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"<"}
+    walk += [tok.vocab[c] for c in "<CUR:"]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal == {"3"}
+    walk += [tok.vocab["3"], tok.vocab[">"], _tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert legal and all(t.startswith("<d:") for t in legal)
+    walk += [_tid(tok, "<d:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<EOS>" in legal                   # buffer == target
+
+
+def test_stage2_random_walks_converge_and_replay_to_target():
+    """The guarantee with ops admitted: every terminated walk -- cursor
+    jumps, range deletes, typos and all -- replays to the exact target."""
+    import random
+
+    from typeshi.buffer import replay
+    from typeshi.serialize import _encode_char, deserialize
+
+    tok = OpTok()
+    target = "hi ho"
+    for trial in range(3):
+        rng = random.Random(trial)
+        proc = ConvergenceProcessor(tok, PROMPT_LEN, target, excursion_budget=3)
+        walk: list[int] = []
+        terminated = False
+        for _ in range(800):
+            ids = torch.zeros((1, PROMPT_LEN + len(walk)), dtype=torch.long)
+            for j, g in enumerate(walk):
+                ids[0, PROMPT_LEN + j] = g
+            scores = torch.zeros((1, tok.unk_token_id + 1))
+            out = proc(ids, scores)[0]
+            legal = (out > float("-inf")).nonzero().flatten().tolist()
+            if tok.eos_token_id in legal:
+                terminated = True
+                break
+            names = {i: tok.id_to_token.get(i, "") for i in legal}
+            buf = proc.buffer.text
+            if buf == target[: len(buf)] and len(buf) < len(target):
+                wanted = f"<{_encode_char(target[len(buf)])}:"
+            else:
+                wanted = "<BKSP:"
+            preferred = [i for i, n in names.items() if n.startswith(wanted)]
+            dts = [i for i, n in names.items() if n.startswith("<DT:")]
+            if dts:
+                pick = rng.choice(dts)
+            elif preferred and rng.random() < 0.85:
+                pick = rng.choice(preferred)
+            else:
+                pick = rng.choice(legal)      # includes op openers and digits
+            walk.append(pick)
+        assert terminated, f"trial {trial} never converged in 800 tokens"
+        text = "".join(tok.id_to_token[i] for i in walk)
+        assert replay(deserialize(text)) == target
