@@ -360,3 +360,52 @@ def test_paired_is_a_required_argument():
     sessions = [_lognormal_session(rng) for _ in range(20)]
     with pytest.raises(TypeError):
         train_discriminator(sessions, sessions)
+
+
+def test_writer_grouped_folds_defeat_identity_leakage():
+    """The eval's gate must not be winnable by recognising the typist.
+
+    Real sessions carry a writer's fingerprint; generated ones cannot. If
+    folds are grouped by PAIR, the same writer appears in train and test, so
+    a classifier can score "typist I know" as a proxy for "real". Here every
+    real session of a writer shares that writer's timing signature and the
+    fakes are one common distribution: pair-grouped folds separate them,
+    writer-grouped folds cannot.
+    """
+    rng = np.random.default_rng(0)
+    real, fake, writers = [], [], []
+    for w in range(12):                       # 12 typists...
+        mu = 4.2 + 0.12 * w                   # ...each with its own speed
+        for _ in range(8):                    # ...and 8 sessions apiece
+            real.append(_lognormal_session(rng, mu=mu, sigma=0.35))
+            fake.append(_lognormal_session(rng, mu=4.8, sigma=0.35))
+            writers.append(f"w{w}")
+
+    _, pair_acc = train_discriminator(real, fake, paired=True, seed=0)
+    _, writer_acc = train_discriminator(
+        real, fake, paired=True, seed=0, writers=writers
+    )
+    assert pair_acc > writer_acc + 0.05, (pair_acc, writer_acc)
+
+
+def test_writer_grouping_keeps_its_teeth():
+    """Writer-grouped folds must still catch a genuinely bad generator --
+    otherwise the fix would just be a blunter judge."""
+    rng = np.random.default_rng(0)
+    real, base, writers = [], [], []
+    for w in range(10):
+        for _ in range(8):
+            real.append(_humanlike_session(rng, n=120))
+            base.append(heuristic_baseline("the quick brown fox jumps", wpm=60,
+                                           seed=len(base)))
+            writers.append(f"w{w}")
+    _, acc = train_discriminator(real, base, paired=True, seed=0, writers=writers)
+    assert acc >= 0.90, acc
+
+
+def test_writers_must_align_with_pairs():
+    rng = np.random.default_rng(0)
+    real = [_lognormal_session(rng) for _ in range(6)]
+    fake = [_lognormal_session(rng) for _ in range(6)]
+    with pytest.raises(ValueError, match="align"):
+        train_discriminator(real, fake, paired=True, writers=["a", "b"])
