@@ -148,6 +148,12 @@ def main() -> None:
         help="score every session found, even training writers (debug only)",
     )
     ap.add_argument("--n", type=int, default=200)
+    ap.add_argument(
+        "--max-per-writer", type=int, default=3,
+        help="cap sessions taken from any one participant; Aalto gives each "
+             "~15 and the sweep is file-ordered, so an uncapped run scores a "
+             "handful of writers many times over",
+    )
     ap.add_argument("--out", type=Path, default=Path("eval_report.json"))
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument(
@@ -189,8 +195,10 @@ def main() -> None:
     rejected_wrong_text = 0
     skipped_train_writer = 0
     skipped_unencodable = 0
+    scored_writers: list[str] = []
 
     max_attempts = 3 * args.n
+    per_writer: dict[str, int] = {}
     for i, (writer, target, events) in enumerate(aalto.iter_sessions(args.held_out)):
         if len(real) >= args.n:
             break
@@ -205,6 +213,12 @@ def main() -> None:
             break
         if test_writers is not None and f"aalto:{writer}" not in test_writers:
             skipped_train_writer += 1
+            continue
+        # Aalto gives each participant ~15 sessions and this loop walks them
+        # file by file, so an uncapped sweep drew 200 sessions from 14
+        # writers -- too few groups for a writer-grouped judgement and a
+        # thin sample of the population besides.
+        if per_writer.get(writer, 0) >= args.max_per_writer:
             continue
         labels = compute_labels(events, target)
         try:
@@ -240,6 +254,8 @@ def main() -> None:
         # Timing-basis symmetrization happens once, uniformly, in the
         # codec_roundtrip pass below -- raw appends here keep labels and
         # roundtripping cleanly separated.
+        per_writer[writer] = per_writer.get(writer, 0) + 1
+        scored_writers.append(writer)
         real.append(events)
         fake.append(generated)
         baseline.append(heuristic_baseline(target, wpm=labels.wpm or 60, seed=i))
@@ -296,13 +312,20 @@ def main() -> None:
     baseline = [codec_roundtrip(s) for s in baseline]
 
     # All comparisons against generations/baselines are PAIRED (same targets).
-    _, acc_model = train_discriminator(real, fake, paired=True)
-    _, acc_model_timing = train_discriminator(
-        real, fake, paired=True, count_features=False
+    _, acc_model = train_discriminator(
+        real, fake, paired=True, writers=scored_writers
     )
-    _, acc_baseline = train_discriminator(real, baseline, paired=True)
+    _, acc_model_pair_grouped = train_discriminator(real, fake, paired=True)
+    _, acc_model_timing = train_discriminator(
+        real, fake, paired=True, count_features=False, writers=scored_writers
+    )
+    _, acc_baseline = train_discriminator(
+        real, baseline, paired=True, writers=scored_writers
+    )
     shuffled = [shuffle_timing(s, seed=i) for i, s in enumerate(real)]
-    _, acc_shuffled = train_discriminator(real, shuffled, paired=True)
+    _, acc_shuffled = train_discriminator(
+        real, shuffled, paired=True, writers=scored_writers
+    )
     control = real_vs_real_control(real)
 
     gates = {
@@ -326,7 +349,10 @@ def main() -> None:
         "constrained_decoding": not args.unconstrained,
         "codec_roundtripped_real": True,
         "distributional": compare_sessions(real, fake),
+        "writer_grouped_cv": True,
+        "distinct_writers_scored": len(set(scored_writers)),
         "discriminator_accuracy_vs_model": acc_model,
+        "discriminator_accuracy_vs_model_pair_grouped": acc_model_pair_grouped,
         "discriminator_accuracy_vs_model_raw_real": acc_model_raw_real,
         "discriminator_accuracy_vs_model_timing_only": acc_model_timing,
         "discriminator_accuracy_vs_heuristic_baseline": acc_baseline,
