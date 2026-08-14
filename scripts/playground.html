@@ -659,6 +659,302 @@
       }
       .caret { opacity: 1; }
     }
+
+    /* ---- phase-2 additions ---- */
+
+    .status-pill.loading .status-dot {
+      background: var(--amber);
+      box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.14);
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+    .status-pill.failed .status-dot {
+      background: var(--red);
+      box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.14);
+    }
+    @keyframes pulse { 50% { opacity: 0.35; } }
+
+    select {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #0b1017;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+    }
+    select:focus { border-color: var(--cyan-strong); outline: none; }
+
+    .field-label {
+      display: block;
+      margin-bottom: 6px;
+      color: #c8d0dc;
+      font-size: 0.81rem;
+      font-weight: 700;
+    }
+
+    .seg {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+    .seg input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .seg label {
+      padding: 9px 4px;
+      border-right: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 750;
+      text-align: center;
+      cursor: pointer;
+      transition: color 120ms ease, background 120ms ease;
+    }
+    .seg label:last-of-type { border-right: 0; }
+    .seg input:checked + label { background: rgba(45, 212, 191, 0.16); color: var(--cyan); }
+    .seg input:focus-visible + label { outline: 3px solid rgba(94, 234, 212, 0.72); outline-offset: -3px; }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: #c8d0dc;
+      font-size: 0.81rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .check-row input { margin: 2px 0 0; accent-color: var(--cyan-strong); }
+
+    .hint {
+      margin: 5px 0 0;
+      color: var(--dim);
+      font-size: 0.68rem;
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    .range-control.disabled { opacity: 0.38; pointer-events: none; }
+
+    .bin-tag {
+      margin-left: 6px;
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: rgba(94, 234, 212, 0.12);
+      color: var(--cyan);
+      font-size: 0.66rem;
+    }
+
+    .subgroup {
+      margin-top: 2px;
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      display: grid;
+      gap: 13px;
+    }
+
+    .progress-block { margin-top: 13px; }
+
+    .progress-track {
+      height: 6px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #212a36;
+    }
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #2dd4bf, #72f7e2);
+      transition: width 180ms ease;
+    }
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-buffer {
+      margin-top: 7px;
+      padding: 8px 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: #090d13;
+      color: #9fb0c4;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+      max-height: 68px;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .cancel-button {
+      border: 1px solid rgba(251, 113, 133, 0.4);
+      border-radius: 11px;
+      background: #241019;
+      color: #fecdd3;
+      min-height: 48px;
+      padding: 0 16px;
+      font-weight: 780;
+      cursor: pointer;
+    }
+    .cancel-button:hover { background: #2f141f; }
+
+    .badge-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+    .badge {
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(11, 16, 23, 0.7);
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+    .badge.good { border-color: rgba(74, 222, 128, 0.42); background: rgba(74, 222, 128, 0.1); color: var(--green); }
+    .badge.bad { border-color: rgba(251, 113, 133, 0.42); background: rgba(251, 113, 133, 0.1); color: var(--red); }
+    .badge.warn { border-color: rgba(251, 191, 36, 0.42); background: rgba(251, 191, 36, 0.1); color: var(--amber); }
+
+    .notice {
+      margin-top: 13px;
+      padding: 11px 12px;
+      border: 1px solid rgba(251, 191, 36, 0.42);
+      border-radius: 9px;
+      background: rgba(251, 191, 36, 0.09);
+      color: #fde68a;
+      font-size: 0.78rem;
+      line-height: 1.5;
+    }
+    .notice code { color: #fef3c7; }
+
+    .panel-card { margin-top: 18px; padding: clamp(16px, 2.4vw, 24px); }
+
+    details.panel > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      list-style: none;
+      color: var(--text);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    details.panel > summary::after {
+      content: '+';
+      color: var(--cyan);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    details.panel[open] > summary::after { content: '\2212'; }
+    details.panel > .panel-body { margin-top: 15px; }
+
+    .mono-block {
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: #090d13;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.76rem;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    .mono-block.tokens { color: var(--cyan); font-size: 0.85rem; }
+    .mono-block + .mono-block { margin-top: 9px; }
+
+    .gauge-list { display: grid; gap: 11px; }
+    .gauge {
+      display: grid;
+      grid-template-columns: minmax(0, 13rem) minmax(0, 1fr) 5.2rem;
+      align-items: center;
+      gap: 12px;
+    }
+    .gauge-name { color: #c8d0dc; font-size: 0.76rem; font-weight: 650; }
+    .gauge-track {
+      position: relative;
+      height: 20px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #090d13;
+    }
+    .gauge-band {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(94, 234, 212, 0.13);
+      border-left: 1px solid rgba(94, 234, 212, 0.3);
+      border-right: 1px solid rgba(94, 234, 212, 0.3);
+    }
+    .gauge-mark {
+      position: absolute;
+      top: 50%;
+      width: 9px;
+      height: 9px;
+      margin: -4.5px 0 0 -4.5px;
+      border-radius: 50%;
+    }
+    .gauge-mark.value { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background: var(--green); box-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
+    .gauge-mark.value.out { background: var(--amber); box-shadow: 0 0 8px rgba(251, 191, 36, 0.5); }
+    .gauge-mark.heuristic { background: #a78bfa; }
+    .gauge-mark.shuffled { background: #60a5fa; }
+    .gauge-tick {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      width: 1px;
+      background: var(--dim);
+    }
+    .gauge-tick.median { background: rgba(94, 234, 212, 0.6); }
+    .gauge-value {
+      color: #dce3ec;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.74rem;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.68rem; }
+    .legend-swatch { width: 9px; height: 9px; border-radius: 50%; }
+    .legend-swatch.band { width: 16px; border-radius: 3px; background: rgba(94, 234, 212, 0.28); }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .kv {
+      padding: 9px 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 9px;
+      background: rgba(11, 16, 23, 0.6);
+    }
+    .kv-label { display: block; color: var(--dim); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+    .kv-value { display: block; margin-top: 3px; color: #dce3ec; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; }
+
+    .panel-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 14px; }
+    .panel-actions .small-button { min-height: 34px; }
+    .small-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .empty-note { color: var(--dim); font-size: 0.78rem; }
+
+    @media (max-width: 760px) {
+      .gauge { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+      .gauge-value { text-align: left; }
+    }
   </style>
 </head>
 <body>
@@ -679,31 +975,71 @@
       <aside class="card controls" aria-labelledby="controlsTitle">
         <div class="section-heading">
           <h2 id="controlsTitle">Typing setup</h2>
-          <span class="counter" id="charCounter">0 / 300</span>
+          <span class="counter" id="charCounter">0 / 600</span>
         </div>
 
-        <label class="sr-only" for="targetText" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Target text</label>
-        <textarea id="targetText" maxlength="300" spellcheck="true">Sunday tickets have been on sale for weeks.</textarea>
+        <label class="field-label" for="checkpointSelect">Checkpoint</label>
+        <select id="checkpointSelect"><option value="">loading…</option></select>
+        <p class="hint" id="checkpointHint">—</p>
+
+        <label class="field-label" for="targetText" style="margin-top:14px">Target text</label>
+        <textarea id="targetText" maxlength="600" spellcheck="true">Sunday tickets have been on sale for weeks.</textarea>
 
         <div class="control-stack">
-          <div class="range-control">
-            <label for="wpm">Target speed <span class="value"><span id="wpmValue">60</span> WPM</span></label>
-            <input id="wpm" type="range" min="20" max="156" step="1" value="60">
+          <div>
+            <span class="field-label">Mode</span>
+            <div class="seg">
+              <input id="modeT" type="radio" name="mode" value="transcription" checked><label for="modeT">Transcription</label>
+              <input id="modeC" type="radio" name="mode" value="composition"><label for="modeC">Composition</label>
+            </div>
+            <p class="hint" id="modeHint">Copying a given sentence, the Aalto task.</p>
+            <div class="notice" id="modeWarning" hidden></div>
           </div>
 
-          <div class="range-control">
-            <label for="ecor">Corrected errors <span class="value"><span id="ecorValue">2</span>%</span></label>
+          <div class="range-control" id="wpmControl">
+            <label for="wpm">Target speed <span class="value"><span id="wpmValue">60</span> WPM<span class="bin-tag" id="wpmBin">bin —</span></span></label>
+            <input id="wpm" type="range" min="0" max="195" step="5" value="60">
+          </div>
+
+          <div class="range-control" id="ecorControl">
+            <label for="ecor">Corrected errors <span class="value"><span id="ecorValue">2</span>%<span class="bin-tag" id="ecorBin">bin —</span></span></label>
             <input id="ecor" type="range" min="0" max="30" step="1" value="2">
           </div>
 
-          <div class="range-control">
-            <label for="eunc">Uncorrected errors <span class="value"><span id="euncValue">1</span>%</span></label>
+          <div class="range-control" id="euncControl">
+            <label for="eunc">Uncorrected errors <span class="value"><span id="euncValue">1</span>%<span class="bin-tag" id="euncBin">bin —</span></span></label>
             <input id="eunc" type="range" min="0" max="30" step="1" value="1">
+          </div>
+
+          <div class="range-control" id="revControl">
+            <label for="rev">Revision rate <span class="value"><span id="revValue">0</span>%<span class="bin-tag" id="revBin">bin —</span></span></label>
+            <input id="rev" type="range" min="0" max="30" step="1" value="0">
           </div>
 
           <div class="range-control">
             <label for="temperature">Temperature <span class="value" id="temperatureValue">1.0</span></label>
             <input id="temperature" type="range" min="0.1" max="2" step="0.1" value="1">
+            <p class="hint">1.0 is the most realistic setting. Cooling measurably hurts: the discriminator catches 0.60 of samples at T=1.0, 0.66 at 0.9, 0.685 at 0.8.</p>
+          </div>
+
+          <label class="check-row" for="constrained">
+            <input id="constrained" type="checkbox" checked>
+            <span>Constrained decoding
+              <span class="hint" id="constrainedHint" style="display:block;font-weight:500">Masks logits to the grammar.</span>
+            </span>
+          </label>
+
+          <div class="subgroup" id="convergenceGroup" hidden>
+            <div class="range-control">
+              <label for="excursion">Excursion budget <span class="value" id="excursionValue">4</span></label>
+              <input id="excursion" type="range" min="0" max="12" step="1" value="4">
+              <p class="hint">Off-path characters allowed before only backspace is legal.</p>
+            </div>
+            <div class="range-control">
+              <label for="resolve">Resolve progress <span class="value" id="resolveValue">2</span></label>
+              <input id="resolve" type="range" min="0" max="8" step="1" value="2">
+              <p class="hint">On-path characters typed after a correction before excursions reopen. Stops the model oscillating.</p>
+            </div>
           </div>
 
           <div>
@@ -732,6 +1068,19 @@
             <span id="generateLabel">Type it</span>
           </button>
           <button class="replay-button" id="replayButton" type="button" title="Replay last result" aria-label="Replay last result" disabled>↻</button>
+        </div>
+
+        <div class="action-row" id="cancelRow" hidden>
+          <button class="cancel-button" id="cancelButton" type="button">Cancel run</button>
+        </div>
+
+        <div class="progress-block" id="progressBlock" hidden>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-meta">
+            <span id="progressSteps">0 / 0 tokens</span>
+            <span id="progressRate">—</span>
+          </div>
+          <div class="progress-buffer" id="progressBuffer" aria-live="polite"></div>
         </div>
 
         <div class="error-banner" id="errorBanner" role="alert" hidden>
@@ -773,6 +1122,54 @@
               <span class="stat-value" id="backspacesStat">—</span>
             </div>
           </div>
+
+          <div class="badge-row" id="badgeRow"></div>
+          <div class="notice" id="replayNotice" hidden></div>
+        </div>
+
+        <div class="card panel-card">
+          <details class="panel" id="realismPanel" open>
+            <summary>How human is this?</summary>
+            <div class="panel-body">
+              <p class="hint" id="realismIntro">Each feature has a known null under exchangeability — the value a memoryless typist would land on. The shaded span is where real held-out humans sit (10th–90th percentile), so roughly one real human in five falls outside it on any given feature.</p>
+              <div class="gauge-list" id="gaugeList"><p class="empty-note">Run a generation to fill this in.</p></div>
+              <div class="legend" id="gaugeLegend" hidden>
+                <span class="legend-item"><span class="legend-swatch band"></span>real humans, p10–p90</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span>this sample</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:#a78bfa"></span>naive simulator</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:#60a5fa"></span>gaps shuffled</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:var(--dim)"></span>null</span>
+              </div>
+              <div class="kv-grid" id="realismKv"></div>
+            </div>
+          </details>
+        </div>
+
+        <div class="card panel-card">
+          <details class="panel" id="promptPanel">
+            <summary>What the model sees</summary>
+            <div class="panel-body">
+              <p class="hint">Every knob is binned before the model sees it — 40 speed buckets, whole percents capped at 30 — so a slider can move several steps without changing a single token.</p>
+              <div class="mono-block tokens" id="promptTokens">—</div>
+              <div class="mono-block" id="promptFull">—</div>
+            </div>
+          </details>
+        </div>
+
+        <div class="card panel-card">
+          <details class="panel" id="corpusPanel">
+            <summary>Compare with a real human</summary>
+            <div class="panel-body">
+              <div class="panel-actions">
+                <button class="small-button" id="loadRealButton" type="button">Load a held-out session</button>
+                <button class="small-button" id="replayRealButton" type="button" disabled>Replay the human</button>
+                <button class="small-button" id="replayGenButton" type="button" disabled>Replay the model</button>
+              </div>
+              <p class="hint" id="corpusHint">Draws a session from the writers this checkpoint never trained on, put through the same codec as the model's output.</p>
+              <div class="kv-grid" id="corpusKv"></div>
+              <div class="gauge-list" id="corpusGauges" style="margin-top:14px"></div>
+            </div>
+          </details>
         </div>
 
         <div class="card keyboard-card">
@@ -835,7 +1232,44 @@
       let playbackGeneration = 0;
       let playbackTimers = new Set();
       let pressedCounts = new Map();
-      let typedBuffer = '';
+      const $ = id => document.getElementById(id);
+
+      // Mirrors src/typeshi/buffer.py. Composition emits cursor moves and
+      // selection deletes, so an append-only string would silently disagree
+      // with the text the server replayed.
+      let buf = { text: '', cursor: 0 };
+      let info = null;
+      let currentJobId = null;
+      let currentStream = null;
+      let infoTimer = null;
+      let promptTimer = null;
+      let lastRealSession = null;
+
+      function bufReset() { buf = { text: '', cursor: 0 }; }
+
+      function bufApply(event) {
+        const t = event.type;
+        if (t === 'key' && typeof event.char === 'string') {
+          buf.text = buf.text.slice(0, buf.cursor) + event.char + buf.text.slice(buf.cursor);
+          buf.cursor += 1;
+        } else if (t === 'bksp') {
+          if (buf.cursor > 0) {
+            buf.text = buf.text.slice(0, buf.cursor - 1) + buf.text.slice(buf.cursor);
+            buf.cursor -= 1;
+          }
+        } else if (t === 'cursor') {
+          if (Number.isInteger(event.pos) && event.pos >= 0 && event.pos <= buf.text.length) {
+            buf.cursor = event.pos;
+          }
+        } else if (t === 'seldel') {
+          const a = event.start;
+          const b = event.end;
+          if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && a < b && b <= buf.text.length) {
+            buf.text = buf.text.slice(0, a) + buf.text.slice(b);
+            buf.cursor = a;
+          }
+        }
+      }
 
       const shiftedToBase = {
         '~': '`', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
@@ -945,36 +1379,39 @@
         playbackTimers.add(timer);
       }
 
-      function renderTypingView(target = lastResult ? lastResult.target : elements.targetText.value) {
+      function renderTypingView(target = lastResult ? lastResult.session.target : elements.targetText.value) {
+        const typed = buf.text;
         elements.targetLine.replaceChildren();
         Array.from(target || '').forEach((char, index) => {
           const span = document.createElement('span');
           span.textContent = char;
-          if (index < typedBuffer.length) {
-            span.className = typedBuffer[index] === char ? 'matched' : 'mismatch';
+          if (index < typed.length) {
+            span.className = typed[index] === char ? 'matched' : 'mismatch';
           }
           elements.targetLine.appendChild(span);
         });
 
+        // The caret is drawn AT the cursor, not always at the end: cursor and
+        // seldel events move it into the middle of the buffer.
         elements.typedOutput.replaceChildren();
-        Array.from(typedBuffer).forEach((char, index) => {
+        const caret = document.createElement('span');
+        caret.className = 'caret';
+        caret.setAttribute('aria-hidden', 'true');
+        Array.from(typed).forEach((char, index) => {
+          if (index === buf.cursor) elements.typedOutput.appendChild(caret);
           const span = document.createElement('span');
           span.textContent = char;
           if (char !== (target || '')[index]) span.className = 'wrong';
           elements.typedOutput.appendChild(span);
         });
-        const caret = document.createElement('span');
-        caret.className = 'caret';
-        caret.setAttribute('aria-hidden', 'true');
-        elements.typedOutput.appendChild(caret);
+        if (buf.cursor >= typed.length) elements.typedOutput.appendChild(caret);
       }
 
       function applyPress(event, target) {
+        bufApply(event);
         if (event.type === 'bksp') {
-          typedBuffer = typedBuffer.slice(0, -1);
           setKeyPressed('Backspace', true);
         } else if (event.type === 'key' && typeof event.char === 'string') {
-          typedBuffer += event.char;
           const baseKey = baseKeyForCharacter(event.char);
           setKeyPressed(baseKey, true);
           if (isShiftedCharacter(event.char)) setKeyPressed('Shift', true);
@@ -991,13 +1428,13 @@
         }
       }
 
-      function playResult(result) {
+      function playSession(session, label = '') {
         cancelPlayback('Starting…');
         const generation = playbackGeneration;
         const speed = getPlaybackSpeed();
-        const events = Array.isArray(result.events) ? result.events : [];
-        const target = typeof result.target === 'string' ? result.target : '';
-        typedBuffer = '';
+        const events = Array.isArray(session.events) ? session.events : [];
+        const target = typeof session.target === 'string' ? session.target : '';
+        bufReset();
         renderTypingView(target);
 
         if (events.length === 0) {
@@ -1007,38 +1444,86 @@
 
         const firstPress = Number(events[0].press) || 0;
         let finishAt = 0;
-        elements.playbackState.textContent = `Playing · ${speed}×`;
+        elements.playbackState.textContent = `${label || 'Playing'} · ${speed}×`;
 
         events.forEach(event => {
           const press = Number(event.press);
-          const release = Number(event.release);
           const pressAt = (Math.max(firstPress, Number.isFinite(press) ? press : firstPress) - firstPress) / speed;
-          const releaseAt = (Math.max(Number.isFinite(release) ? release : press, Number.isFinite(press) ? press : firstPress) - firstPress) / speed;
-          finishAt = Math.max(finishAt, releaseAt);
+          finishAt = Math.max(finishAt, pressAt);
           schedule(() => applyPress(event, target), pressAt, generation);
-          schedule(() => applyRelease(event), releaseAt, generation);
+          // Cursor and seldel events carry release: null -- there is no key
+          // going back up, so they get no release timer at all.
+          if (event.release !== null && event.release !== undefined) {
+            const release = Number(event.release);
+            const releaseAt = (Math.max(Number.isFinite(release) ? release : press, firstPress) - firstPress) / speed;
+            finishAt = Math.max(finishAt, releaseAt);
+            schedule(() => applyRelease(event), releaseAt, generation);
+          }
         });
 
         schedule(() => {
           releaseAllKeys();
-          elements.playbackState.textContent = 'Complete';
+          // The animation and the server's replay() must agree. If they do
+          // not, one of the two buffer implementations is wrong and that is
+          // worth surfacing rather than quietly showing the wrong text.
+          if (typeof session.produced === 'string' && buf.text !== session.produced && !session.replay_error) {
+            elements.playbackState.textContent = 'Complete (playback mismatch)';
+            showError('Animated buffer disagrees with the server replay — this is a bug worth reporting.');
+          } else {
+            elements.playbackState.textContent = 'Complete';
+          }
         }, finishAt + 24, generation);
       }
 
-      function setStats(result, requestedWpm) {
-        const similarity = Number(result.similarity);
+      function setStats(session, requestedWpm) {
+        const similarity = Number(session.similarity);
         const similarityPercent = Number.isFinite(similarity) ? similarity * 100 : 0;
         elements.similarityStat.textContent = `${similarityPercent.toFixed(1)}%`;
         elements.similarityStat.classList.remove('good', 'medium', 'poor');
         elements.similarityStat.classList.add(similarityPercent >= 90 ? 'good' : similarityPercent >= 80 ? 'medium' : 'poor');
 
-        const realizedWpm = Number(result.realized_wpm);
+        const realizedWpm = Number(session.realized_wpm);
         elements.wpmStat.textContent = `${Number.isFinite(realizedWpm) ? realizedWpm.toFixed(1) : '—'} / ${requestedWpm}`;
 
-        const duration = Number(result.duration_ms);
+        const duration = Number(session.duration_ms);
         elements.durationStat.textContent = Number.isFinite(duration) ? `${(duration / 1000).toFixed(2)} s` : '—';
-        elements.eventsStat.textContent = Array.isArray(result.events) ? String(result.events.length) : '0';
-        elements.backspacesStat.textContent = String(Number.isFinite(Number(result.backspaces)) ? Number(result.backspaces) : 0);
+        elements.eventsStat.textContent = String(session.n_events ?? 0);
+        elements.backspacesStat.textContent = String(Number(session.backspaces) || 0);
+      }
+
+      function badge(text, kind) {
+        const el = document.createElement('span');
+        el.className = `badge${kind ? ' ' + kind : ''}`;
+        el.textContent = text;
+        return el;
+      }
+
+      function setBadges(result) {
+        const row = $('badgeRow');
+        row.replaceChildren();
+        const session = result.session;
+        const v = result.validity || {};
+        row.appendChild(badge(v.ok ? 'valid sample' : `invalid — ${v.reason}`, v.ok ? 'good' : 'bad'));
+        row.appendChild(badge(
+          result.terminated ? 'ended on EOS' : `budget exhausted (${result.steps}/${result.budget})`,
+          result.terminated ? 'good' : 'warn'));
+        row.appendChild(badge(session.exact ? 'typed the target exactly' : 'target not typed exactly',
+          session.exact ? 'good' : ''));
+        if (result.mode === 'composition') {
+          row.appendChild(badge(result.constrained ? 'convergence mask on' : 'free composition', result.constrained ? '' : 'warn'));
+        }
+        if (result.cancelled) row.appendChild(badge('cancelled — partial stream', 'warn'));
+        row.appendChild(badge(`${result.steps} tokens`, ''));
+
+        const notice = $('replayNotice');
+        if (session.replay_error) {
+          notice.hidden = false;
+          notice.textContent = `The stream could not be fully replayed — ${session.replay_error}. `
+            + 'The partial stream is animated above. This is the cursor-validation failure the '
+            + 'convergence mask exists to prevent; it can only happen with constrained decoding off.';
+        } else {
+          notice.hidden = true;
+        }
       }
 
       function showError(message) {
@@ -1051,31 +1536,402 @@
         elements.errorMessage.textContent = '';
       }
 
-      function setThinking(thinking) {
-        elements.generateButton.disabled = thinking;
-        elements.spinner.hidden = !thinking;
-        elements.generateLabel.textContent = thinking ? 'thinking…' : 'Type it';
+      async function getJSON(path) {
+        const response = await fetch(path);
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (error) {
+          throw new Error(`Server returned an unreadable response (${response.status}).`);
+        }
+        if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+        return payload;
+      }
+
+      async function postJSON(path, body) {
+        const response = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body || {})
+        });
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (error) {
+          throw new Error(`Server returned an unreadable response (${response.status}).`);
+        }
+        if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
+        return payload;
+      }
+
+      function currentMode() {
+        const checked = document.querySelector('input[name="mode"]:checked');
+        return checked ? checked.value : 'transcription';
+      }
+
+      function conditioning() {
+        const mode = currentMode();
+        return {
+          text: elements.targetText.value,
+          mode,
+          wpm: Number(elements.wpm.value),
+          ecor: Number(elements.ecor.value),
+          // The inert knob is SENT as zero, not merely greyed out. REV is 0 in
+          // every transcription row of the corpus and EUNC is 0 in every
+          // composition row by construction, so passing anything else would
+          // build a prompt the model was never trained on and quietly blame
+          // the result on the model.
+          eunc: mode === 'composition' ? 0 : Number(elements.eunc.value),
+          rev: mode === 'transcription' ? 0 : Number($('rev').value)
+        };
+      }
+
+      function syncModeUI() {
+        const mode = currentMode();
+        const constrained = $('constrained').checked;
+        // Each knob is inert in one of the two modes -- REV is 0 in every
+        // transcription row of the corpus, EUNC is 0 in every composition row
+        // by construction -- so the dead one is disabled rather than left to
+        // imply it does something.
+        $('euncControl').classList.toggle('disabled', mode === 'composition');
+        $('revControl').classList.toggle('disabled', mode === 'transcription');
+        $('convergenceGroup').hidden = !(mode === 'composition' && constrained);
+        const trained = (info && info.checkpoint && info.checkpoint.modes) || null;
+        const untrained = trained && !trained.includes(mode);
+        $('modeHint').textContent = mode === 'transcription'
+          ? 'Copying a given sentence, the Aalto task.'
+          : 'Composing the given text as if writing it, with the pauses and revisions that implies.';
+        // A transcription-only checkpoint has never seen <MODE:C>. It will
+        // still produce a stream, and the mask will still make it type the
+        // target, but the behaviour is out of distribution and would read as
+        // a model failure rather than a mode mismatch.
+        $('modeWarning').hidden = !untrained;
+        if (untrained) {
+          $('modeWarning').textContent =
+            `This checkpoint was trained on ${info.checkpoint.corpora.join(' + ') || 'an unknown corpus'}`
+            + `, so it only covers ${trained.join(' and ')}. Running ${mode} on it is out of distribution — `
+            + 'expect timing and revision behaviour from the wrong task.';
+        }
+        $('constrainedHint').textContent = mode === 'composition'
+          ? (constrained
+            ? 'Convergence mask: the stream is guaranteed to type the target exactly. Cursor ops are masked out (stage 2 is not built yet).'
+            : 'Free running. The model tends to compose its own text instead, and can emit cursor moves outside the buffer.')
+          : 'Masks logits to the transcription grammar so every emission is a legal stream.';
+      }
+
+      function setStatusPill(state, text) {
+        elements.apiStatus.classList.toggle('ready', state === 'ready');
+        elements.apiStatus.classList.toggle('loading', state === 'loading');
+        elements.apiStatus.classList.toggle('failed', state === 'error');
+        elements.apiStatusText.textContent = text;
+      }
+
+      function applyInfo(data) {
+        info = data;
+        if (Number.isInteger(data.max_chars) && data.max_chars > 0) {
+          maxChars = data.max_chars;
+          elements.targetText.maxLength = String(maxChars);
+        }
+        const limits = data.limits || {};
+        if (limits.wpm_max) {
+          elements.wpm.max = String(limits.wpm_max);
+          // The model only sees 40 speed buckets; stepping finer would let a
+          // drag change nothing at all.
+          elements.wpm.step = String(limits.wpm_bin_width || 5);
+        }
+        if (limits.pct_max) {
+          ['ecor', 'eunc', 'rev'].forEach(id => { $(id).max = String(limits.pct_max); });
+        }
+        // The fill gradient is derived from min/max, so it has to be recomputed
+        // once the server's real bounds land.
+        updateRange(elements.wpm, elements.wpmValue);
+        updateRange(elements.ecor, elements.ecorValue);
+        updateRange(elements.eunc, elements.euncValue);
+        updateRange($('rev'), $('revValue'));
+
+        const select = $('checkpointSelect');
+        const chosen = (data.checkpoint && data.checkpoint.path) || data.pending || '';
+        const options = (data.checkpoints || []).map(c =>
+          `<option value="${c.path}">${c.path} — ${c.kind}${c.gb ? ', ' + c.gb + ' GB' : ''}</option>`);
+        select.innerHTML = options.join('') || '<option value="">no checkpoints found</option>';
+        if (chosen) select.value = chosen;
+
+        const ready = data.status === 'ready';
+        elements.generateButton.disabled = !ready;
+        $('loadRealButton').disabled = !(data.corpus && data.corpus.available);
+        if (!(data.corpus && data.corpus.available)) {
+          $('corpusHint').textContent = 'No held-out corpus on this machine (expected Aalto logs under data/processed/heldout_aalto).';
+        } else {
+          $('corpusHint').textContent = `${data.corpus.count.toLocaleString()} held-out sessions from writers this checkpoint never trained on, put through the same codec as the model's output.`;
+        }
+
+        if (data.status === 'ready') {
+          setStatusPill('ready', 'Model ready');
+          $('checkpointHint').textContent = `${data.device} · ${data.dtype} · base ${data.checkpoint.base_model || 'n/a'}`;
+        } else if (data.status === 'loading') {
+          setStatusPill('loading', 'Loading model');
+          $('checkpointHint').textContent = data.detail || 'loading…';
+        } else if (data.status === 'error') {
+          setStatusPill('error', 'Load failed');
+          $('checkpointHint').textContent = data.detail || 'load failed';
+        } else {
+          setStatusPill('idle', 'No model loaded');
+          $('checkpointHint').textContent = 'Pick a checkpoint to load.';
+        }
+
+        elements.modelInfo.textContent = data.checkpoint
+          ? `checkpoint: ${data.checkpoint.path} · ${data.device} · ${data.dtype} · `
+            + `base ${data.checkpoint.base_model || 'n/a'} · trained for ${(data.checkpoint.modes || []).join(' + ')}`
+          : `no checkpoint · status ${data.status}`;
+        syncModeUI();
+        updateCounter();
       }
 
       async function fetchInfo() {
         try {
-          const response = await fetch('/api/info');
-          if (!response.ok) throw new Error(`Info request failed (${response.status})`);
-          const info = await response.json();
-          if (Number.isInteger(info.max_chars) && info.max_chars > 0) {
-            maxChars = info.max_chars;
-            elements.targetText.maxLength = String(maxChars);
-          }
-          elements.modelInfo.textContent = `checkpoint: ${info.checkpoint || 'unknown'} · device: ${info.device || 'unknown'}`;
-          elements.apiStatus.classList.add('ready');
-          elements.apiStatusText.textContent = 'Model ready';
-          updateCounter();
+          applyInfo(await getJSON('/api/info'));
         } catch (error) {
-          elements.apiStatus.classList.remove('ready');
-          elements.apiStatusText.textContent = 'API unavailable';
+          setStatusPill('error', 'API unavailable');
           elements.modelInfo.textContent = 'checkpoint: unavailable · device: unavailable';
           showError(error instanceof Error ? error.message : 'Could not reach the playground API.');
           updateCounter();
+        }
+        // A cold start downloads ~9 GB of base weights, so keep watching until
+        // it settles rather than reporting a dead port.
+        window.clearTimeout(infoTimer);
+        if (!info || info.status === 'loading' || info.status === 'idle') {
+          infoTimer = window.setTimeout(fetchInfo, 2000);
+        }
+      }
+
+      // ---- prompt preview ------------------------------------------------
+
+      async function refreshPrompt() {
+        if (!elements.targetText.value.trim()) {
+          $('promptTokens').textContent = '—';
+          $('promptFull').textContent = '—';
+          return;
+        }
+        try {
+          const preview = await postJSON('/api/prompt', conditioning());
+          $('promptTokens').textContent = preview.tokens;
+          $('promptFull').textContent = preview.prompt;
+          const bins = preview.bins || {};
+          $('wpmBin').textContent = `bin ${bins.wpm}`;
+          $('ecorBin').textContent = `bin ${bins.ecor}`;
+          $('euncBin').textContent = `bin ${bins.eunc}`;
+          $('revBin').textContent = `bin ${bins.rev}`;
+        } catch (error) {
+          $('promptTokens').textContent = '—';
+          $('promptFull').textContent = error instanceof Error ? error.message : 'preview failed';
+        }
+      }
+
+      function schedulePrompt() {
+        window.clearTimeout(promptTimer);
+        promptTimer = window.setTimeout(refreshPrompt, 250);
+      }
+
+      // ---- realism gauges -------------------------------------------------
+
+      function gaugeRow(row, controls) {
+        const wrap = document.createElement('div');
+        wrap.className = 'gauge';
+
+        const name = document.createElement('div');
+        name.className = 'gauge-name';
+        name.textContent = row.label;
+        wrap.appendChild(name);
+
+        const track = document.createElement('div');
+        track.className = 'gauge-track';
+
+        // Features live on wildly different scales, so each row is normalised
+        // to its own span rather than a shared axis.
+        const points = [row.null, row.value];
+        if (row.p10 !== undefined) points.push(row.p10, row.p90, row.median);
+        if (controls.heuristic !== undefined) points.push(controls.heuristic);
+        if (controls.shuffled !== undefined) points.push(controls.shuffled);
+        const finite = points.filter(Number.isFinite);
+        let lo = Math.min(...finite);
+        let hi = Math.max(...finite);
+        if (!(hi > lo)) { lo -= 1; hi += 1; }
+        const pad = (hi - lo) * 0.08;
+        lo -= pad; hi += pad;
+        const pos = v => `${((v - lo) / (hi - lo)) * 100}%`;
+
+        if (row.p10 !== undefined) {
+          const band = document.createElement('div');
+          band.className = 'gauge-band';
+          band.style.left = pos(row.p10);
+          band.style.width = `${((row.p90 - row.p10) / (hi - lo)) * 100}%`;
+          track.appendChild(band);
+          const median = document.createElement('div');
+          median.className = 'gauge-tick median';
+          median.style.left = pos(row.median);
+          track.appendChild(median);
+        }
+
+        const nullTick = document.createElement('div');
+        nullTick.className = 'gauge-tick';
+        nullTick.style.left = pos(row.null);
+        nullTick.title = `null (exchangeable): ${row.null}`;
+        track.appendChild(nullTick);
+
+        [['heuristic', controls.heuristic], ['shuffled', controls.shuffled]].forEach(([kind, v]) => {
+          if (!Number.isFinite(v)) return;
+          const mark = document.createElement('div');
+          mark.className = `gauge-mark ${kind}`;
+          mark.style.left = pos(v);
+          mark.title = `${kind}: ${v}`;
+          track.appendChild(mark);
+        });
+
+        const dot = document.createElement('div');
+        dot.className = `gauge-mark value${row.in_band === false ? ' out' : ''}`;
+        dot.style.left = pos(row.value);
+        dot.title = `this sample: ${row.value}`;
+        track.appendChild(dot);
+        wrap.appendChild(track);
+
+        const value = document.createElement('div');
+        value.className = 'gauge-value';
+        value.textContent = Number(row.value).toFixed(3);
+        wrap.appendChild(value);
+        return wrap;
+      }
+
+      function renderGauges(container, rows, controlSets) {
+        container.replaceChildren();
+        if (!rows || !rows.length) {
+          const note = document.createElement('p');
+          note.className = 'empty-note';
+          note.textContent = 'Nothing to show yet.';
+          container.appendChild(note);
+          return;
+        }
+        const byKey = {};
+        Object.entries(controlSets || {}).forEach(([kind, list]) => {
+          (list || []).forEach(r => {
+            byKey[r.key] = byKey[r.key] || {};
+            byKey[r.key][kind] = r.value;
+          });
+        });
+        rows.forEach(row => container.appendChild(gaugeRow(row, byKey[row.key] || {})));
+      }
+
+      function kv(label, value) {
+        const cell = document.createElement('div');
+        cell.className = 'kv';
+        const l = document.createElement('span');
+        l.className = 'kv-label';
+        l.textContent = label;
+        const v = document.createElement('span');
+        v.className = 'kv-value';
+        v.textContent = value;
+        cell.append(l, v);
+        return cell;
+      }
+
+      function renderResult(result) {
+        const session = result.session;
+        lastResult = result;
+        elements.replayButton.disabled = false;
+        $('replayGenButton').disabled = false;
+        setStats(session, lastRequestedWpm);
+        setBadges(result);
+        renderGauges($('gaugeList'), result.serial, result.controls);
+        $('gaugeLegend').hidden = false;
+
+        const mix = Object.entries(session.event_mix || {})
+          .map(([k, v]) => `${k} ${(v * 100).toFixed(1)}%`).join(' · ') || '—';
+        const grid = $('realismKv');
+        grid.replaceChildren(
+          kv('event mix', mix),
+          kv('pauses > 1 s', `${((session.pause_fraction || 0) * 100).toFixed(1)}%`),
+          kv('in real band', `${result.serial.filter(r => r.in_band).length} / ${result.serial.length}`),
+          kv('decode', `${result.steps} / ${result.budget} tokens`)
+        );
+        playSession(session, 'Playing');
+      }
+
+      // ---- generation ------------------------------------------------------
+
+      function setRunning(running) {
+        elements.generateButton.disabled = running || !(info && info.status === 'ready');
+        elements.spinner.hidden = !running;
+        elements.generateLabel.textContent = running ? 'typing…' : 'Type it';
+        $('cancelRow').hidden = !running;
+        $('progressBlock').hidden = !running;
+      }
+
+      function showProgress(snap) {
+        const p = snap.progress || {};
+        const step = Number(p.step) || 0;
+        const max = Number(p.max_steps) || 1;
+        $('progressFill').style.width = `${Math.min(100, (step / max) * 100)}%`;
+        const queued = snap.state === 'queued';
+        $('progressSteps').textContent = queued
+          ? 'queued behind another run'
+          : `${step} / ${max} tokens`;
+        $('progressRate').textContent = p.tok_per_s
+          ? `${p.tok_per_s} tok/s${p.eta_s ? ` · ~${p.eta_s}s left` : ''}`
+          : '—';
+        if (typeof p.buffer === 'string') $('progressBuffer').textContent = p.buffer || '(nothing yet)';
+      }
+
+      function closeStream() {
+        if (currentStream) {
+          currentStream.close();
+          currentStream = null;
+        }
+      }
+
+      function handleSnapshot(snap) {
+        showProgress(snap);
+        if (snap.state === 'done' || snap.state === 'cancelled') {
+          closeStream();
+          setRunning(false);
+          currentJobId = null;
+          if (snap.result) renderResult(snap.result);
+          else cancelPlayback('Cancelled');
+        } else if (snap.state === 'error') {
+          closeStream();
+          setRunning(false);
+          currentJobId = null;
+          cancelPlayback('Error');
+          showError(snap.error || 'Generation failed.');
+        }
+      }
+
+      function openStream(jobId) {
+        closeStream();
+        // EventSource reconnects on close, so the terminal states above close
+        // it explicitly rather than letting it restart a finished job.
+        const stream = new EventSource(`/api/jobs/${jobId}/stream`);
+        currentStream = stream;
+        stream.onmessage = message => {
+          try {
+            handleSnapshot(JSON.parse(message.data));
+          } catch (error) { /* a malformed frame is not worth killing the run */ }
+        };
+        stream.onerror = () => {
+          closeStream();
+          pollJob(jobId);
+        };
+      }
+
+      async function pollJob(jobId) {
+        if (currentJobId !== jobId) return;
+        try {
+          const snap = await getJSON(`/api/jobs/${jobId}`);
+          handleSnapshot(snap);
+          if (['queued', 'running'].includes(snap.state)) {
+            window.setTimeout(() => pollJob(jobId), 700);
+          }
+        } catch (error) {
+          setRunning(false);
+          showError(error instanceof Error ? error.message : 'Lost track of the run.');
         }
       }
 
@@ -1087,12 +1943,6 @@
           elements.targetText.focus();
           return;
         }
-        if (text.length > maxChars) {
-          showError(`Target text must be ${maxChars} characters or fewer.`);
-          elements.targetText.focus();
-          return;
-        }
-
         const seed = Number(elements.seed.value);
         if (!Number.isInteger(seed)) {
           showError('Seed must be a whole number.');
@@ -1101,42 +1951,76 @@
         }
 
         cancelPlayback('Generating…');
-        typedBuffer = '';
+        bufReset();
         lastRequestedWpm = Number(elements.wpm.value);
         renderTypingView(text);
-        setThinking(true);
+        $('progressBuffer').textContent = '';
+        $('progressFill').style.width = '0%';
+        setRunning(true);
 
         try {
-          const response = await fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text,
-              wpm: lastRequestedWpm,
-              ecor: Number(elements.ecor.value),
-              eunc: Number(elements.eunc.value),
-              temperature: Number(elements.temperature.value),
-              seed
-            })
+          const submitted = await postJSON('/api/generate', {
+            ...conditioning(),
+            temperature: Number(elements.temperature.value),
+            seed,
+            constrained: $('constrained').checked,
+            excursion_budget: Number($('excursion').value),
+            resolve_progress: Number($('resolve').value)
           });
-
-          let payload;
-          try {
-            payload = await response.json();
-          } catch (error) {
-            throw new Error(`Server returned an unreadable response (${response.status}).`);
-          }
-          if (!response.ok) throw new Error(payload.error || `Generation failed (${response.status}).`);
-
-          lastResult = payload;
-          elements.replayButton.disabled = false;
-          setStats(payload, lastRequestedWpm);
-          playResult(payload);
+          currentJobId = submitted.job_id;
+          openStream(submitted.job_id);
         } catch (error) {
+          setRunning(false);
           cancelPlayback('Error');
-          showError(error instanceof Error ? error.message : 'Could not reach the generation server.');
+          showError(error instanceof Error ? error.message : 'Could not start the run.');
+        }
+      }
+
+      async function cancelRun() {
+        if (!currentJobId) return;
+        try {
+          await postJSON(`/api/jobs/${currentJobId}/cancel`, {});
+          elements.playbackState.textContent = 'Cancelling…';
+        } catch (error) {
+          showError(error instanceof Error ? error.message : 'Could not cancel.');
+        }
+      }
+
+      // ---- corpus ----------------------------------------------------------
+
+      async function loadReal() {
+        hideError();
+        const random = new Uint32Array(1);
+        window.crypto.getRandomValues(random);
+        $('loadRealButton').disabled = true;
+        try {
+          const sample = await getJSON(`/api/corpus/sample?seed=${random[0] & 0x7fffffff}`);
+          lastRealSession = sample;
+          elements.targetText.value = sample.target;
+          updateCounter();
+          schedulePrompt();
+          $('replayRealButton').disabled = false;
+          const s = sample.session;
+          $('corpusKv').replaceChildren(
+            kv('writer', sample.writer),
+            kv('events', String(s.n_events)),
+            kv('their wpm', String(s.realized_wpm)),
+            kv('backspaces', String(s.backspaces)),
+            kv('pauses > 1 s', `${((s.pause_fraction || 0) * 100).toFixed(1)}%`),
+            kv('codec', sample.codec_roundtripped ? 'roundtripped' : 'raw'),
+            kv('provenance', sample.held_out
+              ? `held out for this checkpoint (${sample.pool})`
+              : `NOT held out — wider pool (${sample.pool})`)
+          );
+          if (!sample.held_out) {
+            $('corpusHint').textContent = 'This checkpoint\'s split matched no local logs, so this session is drawn from the wider pool and the model may have trained on it. Treat the comparison as illustrative.';
+          }
+          renderGauges($('corpusGauges'), sample.serial, {});
+          $('corpusPanel').open = true;
+        } catch (error) {
+          showError(error instanceof Error ? error.message : 'Could not load a real session.');
         } finally {
-          setThinking(false);
+          $('loadRealButton').disabled = false;
         }
       }
 
@@ -1146,25 +2030,68 @@
       updateRange(elements.wpm, elements.wpmValue);
       updateRange(elements.ecor, elements.ecorValue);
       updateRange(elements.eunc, elements.euncValue);
+      updateRange($('rev'), $('revValue'));
+      updateRange($('excursion'), $('excursionValue'));
+      updateRange($('resolve'), $('resolveValue'));
       updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1));
+      syncModeUI();
 
-      elements.targetText.addEventListener('input', updateCounter);
-      elements.wpm.addEventListener('input', () => updateRange(elements.wpm, elements.wpmValue));
-      elements.ecor.addEventListener('input', () => updateRange(elements.ecor, elements.ecorValue));
-      elements.eunc.addEventListener('input', () => updateRange(elements.eunc, elements.euncValue));
-      elements.temperature.addEventListener('input', () => updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1)));
+      elements.targetText.addEventListener('input', () => { updateCounter(); schedulePrompt(); });
+      [
+        [elements.wpm, elements.wpmValue],
+        [elements.ecor, elements.ecorValue],
+        [elements.eunc, elements.euncValue],
+        [$('rev'), $('revValue')]
+      ].forEach(([range, output]) => {
+        range.addEventListener('input', () => {
+          updateRange(range, output);
+          schedulePrompt();
+        });
+      });
+      [[$('excursion'), $('excursionValue')], [$('resolve'), $('resolveValue')]].forEach(([range, output]) => {
+        range.addEventListener('input', () => updateRange(range, output));
+      });
+      elements.temperature.addEventListener('input', () =>
+        updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1)));
+
+      document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener('change', () => { syncModeUI(); schedulePrompt(); });
+      });
+      $('constrained').addEventListener('change', syncModeUI);
+
       elements.randomizeSeed.addEventListener('click', () => {
         const random = new Uint32Array(1);
         window.crypto.getRandomValues(random);
         elements.seed.value = String(random[0] & 0x7fffffff);
       });
       elements.generateButton.addEventListener('click', generate);
+      $('cancelButton').addEventListener('click', cancelRun);
       elements.replayButton.addEventListener('click', () => {
-        if (lastResult) playResult(lastResult);
+        if (lastResult) playSession(lastResult.session, 'Replaying');
+      });
+      $('replayGenButton').addEventListener('click', () => {
+        if (lastResult) playSession(lastResult.session, 'Model');
+      });
+      $('replayRealButton').addEventListener('click', () => {
+        if (lastRealSession) playSession(lastRealSession.session, 'Human');
+      });
+      $('loadRealButton').addEventListener('click', loadReal);
+      $('checkpointSelect').addEventListener('change', async event => {
+        const path = event.target.value;
+        if (!path) return;
+        hideError();
+        try {
+          await postJSON('/api/checkpoint', { path });
+          setStatusPill('loading', 'Loading model');
+          fetchInfo();
+        } catch (error) {
+          showError(error instanceof Error ? error.message : 'Could not switch checkpoint.');
+        }
       });
       elements.dismissError.addEventListener('click', hideError);
 
       fetchInfo();
+      schedulePrompt();
     })();
   </script>
 </body>

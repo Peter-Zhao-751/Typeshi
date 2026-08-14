@@ -45,6 +45,42 @@ def _common_prefix_len(a: str, b: str) -> int:
     return n
 
 
+def role_tables(tok) -> tuple[dict[str, list[int]], dict[int, str], dict[int, str]]:
+    """Maps the registered grammar vocabulary onto decoding roles.
+
+    Returns (char -> ids, id -> char, id -> kind) where kind is one of
+    "key" / "bksp" / "dt". Shared with the streaming observer in
+    typeshi.generate, which has to replay committed tokens into a buffer
+    exactly the way this processor does -- two copies of this table drifting
+    apart would make the live view disagree with the final event list.
+    """
+    from typeshi.serialize import _decode_char
+
+    char_ids: dict[str, list[int]] = {}
+    id_char: dict[int, str] = {}
+    id_kind: dict[int, str] = {}
+    for t in special_tokens():
+        if not t.endswith(">"):
+            continue
+        i = tok.convert_tokens_to_ids(t)
+        if i is None or i == tok.unk_token_id:
+            continue
+        if t.startswith("<DT:"):
+            id_kind[i] = "dt"
+        elif t.startswith("<BKSP:"):
+            id_kind[i] = "bksp"
+        elif ":" in t and not t.startswith(
+            ("<MODE:", "<WPM:", "<ECOR:", "<EUNC:", "<REV:")
+        ):
+            name = t[1:].rsplit(":", 1)[0]
+            char = _decode_char(name)
+            if len(char) == 1:
+                char_ids.setdefault(char, []).append(i)
+                id_char[i] = char
+                id_kind[i] = "key"
+    return char_ids, id_char, id_kind
+
+
 class ConvergenceProcessor:
     """LogitsProcessor guaranteeing the stream types `target` exactly.
 
@@ -73,33 +109,9 @@ class ConvergenceProcessor:
         self._consumed = 0  # generated tokens already applied to the buffer
 
         # id <-> role tables, built once from the registered vocabulary.
-        self._char_ids: dict[str, list[int]] = {}
-        dt_ids, bksp_ids = [], []
-        self._id_char: dict[int, str] = {}
-        self._id_kind: dict[int, str] = {}
-        for t in special_tokens():
-            if not t.endswith(">"):
-                continue
-            i = tok.convert_tokens_to_ids(t)
-            if i is None or i == tok.unk_token_id:
-                continue
-            if t.startswith("<DT:"):
-                dt_ids.append(i)
-                self._id_kind[i] = "dt"
-            elif t.startswith("<BKSP:"):
-                bksp_ids.append(i)
-                self._id_kind[i] = "bksp"
-            elif ":" in t and not t.startswith(
-                ("<MODE:", "<WPM:", "<ECOR:", "<EUNC:", "<REV:")
-            ):
-                name = t[1:].rsplit(":", 1)[0]
-                from typeshi.serialize import _decode_char
-
-                char = _decode_char(name)
-                if len(char) == 1:
-                    self._char_ids.setdefault(char, []).append(i)
-                    self._id_char[i] = char
-                    self._id_kind[i] = "key"
+        self._char_ids, self._id_char, self._id_kind = role_tables(tok)
+        dt_ids = [i for i, k in self._id_kind.items() if k == "dt"]
+        bksp_ids = [i for i, k in self._id_kind.items() if k == "bksp"]
 
         missing = {c for c in target if c not in self._char_ids}
         if missing:

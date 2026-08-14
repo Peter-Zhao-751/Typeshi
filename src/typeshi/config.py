@@ -20,3 +20,10 @@ QWEN25_BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 LLAMA_BASE_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
 DEFAULT_SEED = 0
+
+# Replayed text within this similarity of the target counts as having typed
+# it. Lives here rather than in run_eval because the portal's per-sample
+# validity badge must mean exactly what the Tier-1 validity gate means; two
+# copies of the number would drift and the badge would quietly stop
+# predicting the gate.
+REPLAY_SIM_MIN = 0.80

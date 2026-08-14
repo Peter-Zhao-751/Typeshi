@@ -96,6 +96,20 @@ def special_tokens() -> list[str]:
     return toks
 
 
+def supported_chars() -> frozenset[str]:
+    """The 97 character identities that have a registered `<c:h>` token.
+
+    The authority for "can this model type that". Callers previously read it
+    off typeshi.tiny_tokenizer.TEXT_CHARS, which happens to hold the same 97
+    characters but means something different: that is the tiny model's PROMPT
+    vocabulary. For a Qwen checkpoint the prompt tokenizer accepts any
+    Unicode happily and the constraint is entirely about which characters can
+    be EMITTED, so validating against the prompt side would let a curly quote
+    through to fail much later and much less legibly.
+    """
+    return frozenset(_DIRECT_CHARS) | frozenset(_ESCAPES)
+
+
 def unsupported_chars(events: list[Event]) -> set[str]:
     """Characters in KEY events that have no registered <c:h> token.
 
@@ -106,7 +120,7 @@ def unsupported_chars(events: list[Event]) -> set[str]:
     violates the plan's English-only scope. Sessions containing any are
     dropped at dataset build; measured 6 of 4,680 sample examples (0.13%).
     """
-    supported = set(_DIRECT_CHARS) | set(_ESCAPES)
+    supported = supported_chars()
     return {
         e.char for e in events
         if e.type is EventType.KEY and e.char not in supported

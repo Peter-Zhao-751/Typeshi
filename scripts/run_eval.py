@@ -40,6 +40,7 @@ from typeshi.eval.discriminator import (
     shuffle_timing,
     train_discriminator,
 )
+from typeshi.config import REPLAY_SIM_MIN
 from typeshi.eval.distributional import compare_sessions
 from typeshi.generate import generate
 from typeshi.labels import _levenshtein, compute_labels
@@ -51,7 +52,6 @@ PASS_TEETH_MIN = 0.90
 PASS_SHUFFLE_TEETH_MIN = 0.75  # serial-dependence sensitivity
 PASS_VALID_MIN = 0.90
 CONTROL_BAND = (0.40, 0.60)
-REPLAY_SIM_MIN = 0.80
 MIN_PAIRS = 5  # StratifiedGroupKFold(n_splits=5) needs 5 members per class
 
 

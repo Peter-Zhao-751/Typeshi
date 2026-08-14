@@ -205,9 +205,25 @@ Qwen"). It is a hybrid: 24 of its 32 layers are linear attention, so on CUDA
 `flash-linear-attention` AND `causal-conv1d` must BOTH import (setup_gpu.sh
 installs them) or transformers disarms the entire fast path — measured
 without them: decode ~15 tok/s, which turns every eval into hours. Its
-embeddings are tied, which is why it trains in ~24 GiB. Note for the Mac
-path: mlx-lm cannot convert this architecture, so prepare_mlx_model.py keeps
-a Qwen2.5 default.
+embeddings are tied, which is why it trains in ~24 GiB.
+
+Note for the Mac path, corrected 2026-08-13. Two earlier claims here were
+wrong or have expired:
+
+- "mlx-lm cannot convert this architecture" is no longer true — mlx_lm
+  0.31.3 ships `models/qwen3_5.py` with a full GatedDeltaNet and a
+  `sanitize()` that strips the vision tower. `prepare_mlx_model.py` still
+  keeps a Qwen2.5 default, and that is still the right call for a different
+  reason: the trained artifact is a PEFT adapter with `modules_to_save`
+  embeddings, MLX cannot train embeddings, and `run_eval` cannot load
+  MLX-format adapters.
+- The missing CUDA kernels do not block Apple Silicon at all. transformers
+  guards both imports behind `is_flash_linear_attention_available()` /
+  `is_causal_conv1d_available()`, both of which are gated on
+  `is_torch_cuda_available()`, and wires complete pure-PyTorch fallbacks
+  unconditionally. Measured on an M5 Pro: `checkpoints/motor-phase2` loads in
+  ~25 s and decodes at 13–17 tok/s on MPS in bf16. Slow, not impossible —
+  which is what `scripts/playground.py` is built around.
 
 `Qwen/Qwen2.5-7B-Instruct` (`config.QWEN25_BASE_MODEL`) is the tested
 plain-attention alternative — untied embeddings, ~double the trainable
