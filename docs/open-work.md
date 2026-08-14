@@ -153,16 +153,49 @@ allowed up to a budget"; only the typo half was built, and the number 4 was
 chosen while fighting the oscillation bug, where a wide budget collapsed
 convergence to 1-in-5.
 
-Proposed fix — two budgets, not one bigger one:
-- **typo budget** (~4, unchanged): character-level slips, resolved by BKSP.
-- **revision budget** (~40–60): a coherent off-path span is allowed to
-  develop, and resolution is then required before EOS. Gate it on something
-  meaningful rather than letting it fire constantly — e.g. permit a
-  revision excursion only at a token boundary, and at a rate consistent
-  with the prompt's `<REV:>` knob, which is currently conditioning nothing
-  in composition (see Fix 4).
-- Resolution must be able to use SELDEL/cursor (Fix 1), so a rewrite is
-  select-and-replace, not a mass backspace (Fix 1b).
+### The design: affordability, not a constant
+
+Raising the constant is not the answer, and neither is removing it. An
+unbounded excursion deletes the only force pulling generation back to the
+target — that is precisely the pre-decoder behavior we measured, where the
+model composed its own essay and reached EOS wrong or never (2/5 exact).
+A constant budget, meanwhile, is wrong at both ends: 4 forbids revision, 60
+would let a wandering sampler burn the whole allowance before anyone
+notices.
+
+The rule that dissolves the tension: **allow an excursion of any length,
+provided the remaining generation budget can still pay to undo it and
+finish the target.** Convergence stays guaranteed because it stays
+*reachable* at every step, not because the model is kept on a short leash.
+
+    excursion_allowed  ⟺  cost(resolve current excursion)
+                          + cost(type the remaining target)
+                          ≤ remaining event budget − margin
+
+Two consequences fall out, and they are what make this practical:
+
+- **SELDEL makes long revisions cheap.** Undoing a 50-character excursion
+  costs 50 backspaces, but one cursor move plus one SELDEL is 2 events.
+  With Fix 1's ops available, a phrase-level rewrite is affordable early
+  in a session and the check above rarely binds. Without them it never is.
+  This is why Fix 1 is the prerequisite, not a nicety.
+- **The leash tightens by itself.** As the budget depletes the affordable
+  excursion shrinks to zero, so the model revises early and polishes late
+  — which is what writers actually do, and which gives termination for
+  free rather than by fiat.
+
+Pace the *starts* separately from the *length*: open a revision excursion
+only at a token boundary and at a rate consistent with the prompt's
+`<REV:>` knob, which currently conditions nothing in composition (Fix 4).
+Keep the small typo budget alongside it for character-level slips, which
+should be able to fire anywhere, not just at boundaries.
+
+One thing this design does **not** give you: a reason for the excursion to
+be a *plausible earlier draft* rather than arbitrary off-target text. The
+mask can only permit; the content comes from the model. That is exactly the
+gap IteraTeR was downloaded to fill (`docs/iterater-notes.md`) — real
+human draft→revision chains as training signal, so the detours look like
+drafts instead of noise.
 
 Expect this to move the Tier-2 revision statistics that currently dominate
 the composition discriminator (`cursor_count` KL 7.10, `seldel_count`
