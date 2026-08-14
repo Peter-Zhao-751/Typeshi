@@ -71,6 +71,7 @@ def main() -> None:
     print(f"scoring against {len(test_writers)} held-out writers", flush=True)
 
     real, fake, requested = [], [], []
+    failures: list[dict] = []
     attempts = converged = 0
     max_attempts = 2 * args.n
     for path in sorted(args.klicke.rglob("*.csv")):
@@ -93,8 +94,21 @@ def main() -> None:
                     model, tok, target, labels,
                     temperature=args.temperature, seed=attempts,
                 )
-            except ValueError:
-                break  # window allowance exhausted: a counted failure
+            except ValueError as exc:
+                # Failures must say WHY: the first Tier-2 run reported a
+                # convergence rate with no way to tell budget exhaustion
+                # from a stall, and length turned out not to be the cause
+                # (every capped target is the same size).
+                failures.append({
+                    "writer": writer,
+                    "wpm": labels.wpm,
+                    "corrected_error_rate": labels.corrected_error_rate,
+                    "revision_rate": labels.revision_rate,
+                    "reason": str(exc)[:300],
+                })
+                print(f"  FAIL wpm={labels.wpm:.0f} "
+                      f"rev={labels.revision_rate:.3f}: {exc}", flush=True)
+                break  # counted failure
             if replay(gen) != target:
                 break  # defensive; generate_windowed raises instead
             converged += 1
@@ -114,6 +128,7 @@ def main() -> None:
         "constrained_convergent_decoding": True,
         "codec_roundtripped_real": True,
         "held_out_writers_only": True,
+        "failures": failures,
     }
 
     if len(real) >= 10:

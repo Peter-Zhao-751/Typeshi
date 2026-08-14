@@ -166,6 +166,7 @@ def generate_windowed(
     events: list[Event] = []
     written = ""
     cursor: int | None = None
+    progress: list[int] = []  # on-path chars after each window
     for w in range(max_windows):
         torch.manual_seed(seed + w)
         prompt = build_prompt(target_text, labels, "composition",
@@ -204,7 +205,19 @@ def generate_windowed(
         written, cursor = buf.text, buf.cursor
         if written == target_text:
             return events
+        # On-path progress, not buffer length: a window that types 40 wrong
+        # characters has advanced nothing, and a stalled series of these is
+        # the failure signature worth naming.
+        on_path = 0
+        for a, b in zip(written, target_text):
+            if a != b:
+                break
+            on_path += 1
+        progress.append(on_path)
+    stalled = len(progress) > 1 and progress[-1] <= progress[-2]
     raise ValueError(
-        f"did not converge within {max_windows} windows "
-        f"({len(events)} events, {len(written)}/{len(target_text)} chars on buffer)"
+        f"did not converge within {max_windows} windows: "
+        f"{len(events)} events, on-path {progress[-1] if progress else 0}"
+        f"/{len(target_text)} chars, per-window progress {progress}"
+        f"{', STALLED (last window advanced nothing)' if stalled else ''}"
     )
