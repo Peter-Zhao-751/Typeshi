@@ -7,9 +7,17 @@ the subset-stable hash split.
 
 ## Verdict
 
-**Tier-1 not met — 4 of 5 gates pass; `pass_model` misses by 0.0275**
-(0.5775 against the ≤0.55 ceiling). Report:
-`eval_report_e3_codecfair.json`.
+**Tier-1 IS MET.** Both `motor-full` and `motor-phase2` pass all five gates
+under the corrected evaluation protocol (2026-08-14,
+`eval_report_motor-full_writergrouped.json`): model 0.5129 / 0.5100,
+validity 1.000 / 0.995, teeth 0.997 / 1.000, serial teeth 0.788 / 0.758,
+controls 0.470 / 0.500.
+
+Everything below this section was written while the gate appeared to fail,
+and its numbers are pair-grouped — inflated by the writer-identity leak
+described at the end. The narrative is left intact because the levers it
+records were genuinely spent, but **its verdicts are superseded**: the model
+was never the problem.
 
 | Gate | Value | Needs | |
 |---|---|---|---|
@@ -93,3 +101,41 @@ Infrastructure notes for that run: training peaks at 24.1 GiB (batch 32);
 ~2× and the whole fast path disarms (causal-conv1d needs a source build
 against cuda-toolkit-13-0 — no wheel for torch 2.13); the parallel dataset
 builder rebuilds the full corpus in ~3 min.
+
+
+## Correction (2026-08-14): the gate was measuring writer identity
+
+Every `pass_model` number above is wrong, in the same direction, for one
+reason. Aalto gives each participant ~15 sessions and `run_eval` walked its
+held-out corpus file by file, so 200 "independent" scored sessions came
+from **14 writers** — and pair-grouped CV folds then placed the same writer
+in train and test. A real session carries that writer's fingerprint; a
+generated one cannot. The classifier could therefore score "typist I
+recognise" as a proxy for "real", which is not what the gate is asking.
+
+Measured on this box's own generations, 8 seeds:
+
+| protocol | accuracy |
+|---|---|
+| pair-grouped (all reports above) | 0.6322 ± 0.0120 |
+| writer-grouped | **0.5181 ± 0.0085** |
+
+and the same features identify which of the 14 typists wrote a session at
+0.595 against 0.071 chance — the leak, directly.
+
+Writer grouping is strictly coarser than pair grouping (a pair's real and
+fake share a writer), so it keeps the twin protection pairing existed for
+and adds identity protection, and it is not a blunter judge: it still
+catches the heuristic baseline at 0.997 and timing-shuffled real sessions
+at 0.788. The eval now groups by writer and caps sessions per participant
+(`--max-per-writer`, default 3, which took the sample from 14 writers to
+67). Commit `3ae1a69`.
+
+The consequence for the lever ledger above: more data, more epochs, lower
+temperature and RAFT were all measured against a metric that could not move
+for model-quality reasons. Their null results say nothing about those
+levers. The one real finding they contain is distributional — the marginals
+genuinely improved with data (pause KL 0.92 → 0.46).
+
+Credit: found by the local (Mac) workstream and replicated here before it
+was believed.
