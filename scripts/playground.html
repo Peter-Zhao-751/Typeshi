@@ -1022,6 +1022,14 @@
             <p class="hint">1.0 is the most realistic setting. Cooling measurably hurts: the discriminator catches 0.60 of samples at T=1.0, 0.66 at 0.9, 0.685 at 0.8.</p>
           </div>
 
+          <label class="check-row" for="converge">
+            <input id="converge" type="checkbox" checked>
+            <span>Guarantee convergence
+              <span class="hint" style="display:block;font-weight:500">Tracks the live buffer and masks the model's choices so it <em>cannot</em> finish on anything but your exact text. Typos still happen — they get backspaced and fixed. Generates in the ~512-event windows the model was trained on.</span>
+            </span>
+          </label>
+          <div class="notice" id="convergeWarning" hidden></div>
+
           <label class="check-row" for="constrained">
             <input id="constrained" type="checkbox" checked>
             <span>Constrained decoding
@@ -1031,9 +1039,9 @@
 
           <div class="subgroup" id="convergenceGroup" hidden>
             <div class="range-control">
-              <label for="excursion">Excursion budget <span class="value" id="excursionValue">4</span></label>
-              <input id="excursion" type="range" min="0" max="12" step="1" value="4">
-              <p class="hint">Off-path characters allowed before only backspace is legal.</p>
+              <label for="excursion">Excursion budget <span class="value" id="excursionValue">1</span></label>
+              <input id="excursion" type="range" min="0" max="12" step="1" value="1">
+              <p class="hint">How wrong the buffer may get before repair is forced. Raising this causes the runaway-correction failure: an early typo stays "1 edit away" no matter how far the cursor travels, so nothing forces a fix until the end — then the only repair the model uses is backspace, and it deletes the whole tail. Measured at 4: runs of 136+ consecutive backspaces. At 1: longest run 1.</p>
             </div>
             <div class="range-control">
               <label for="resolve">Resolve progress <span class="value" id="resolveValue">2</span></label>
@@ -1503,24 +1511,30 @@
         row.replaceChildren();
         const session = result.session;
         const v = result.validity || {};
+        row.appendChild(badge(session.exact ? 'typed the target exactly' : 'target NOT typed exactly',
+          session.exact ? 'good' : 'bad'));
         row.appendChild(badge(v.ok ? 'valid sample' : `invalid — ${v.reason}`, v.ok ? 'good' : 'bad'));
-        row.appendChild(badge(
-          result.terminated ? 'ended on EOS' : `budget exhausted (${result.steps}/${result.budget})`,
-          result.terminated ? 'good' : 'warn'));
-        row.appendChild(badge(session.exact ? 'typed the target exactly' : 'target not typed exactly',
-          session.exact ? 'good' : ''));
-        if (result.mode === 'composition') {
-          row.appendChild(badge(result.constrained ? 'convergence mask on' : 'free composition', result.constrained ? '' : 'warn'));
+        row.appendChild(badge(result.decoder || 'unknown decoder',
+          result.decoder && result.decoder.startsWith('convergence') ? 'good' : 'warn'));
+        if (result.budget) {
+          row.appendChild(badge(
+            result.terminated ? 'ended on EOS' : `budget exhausted (${result.steps}/${result.budget})`,
+            result.terminated ? 'good' : 'warn'));
         }
         if (result.cancelled) row.appendChild(badge('cancelled — partial stream', 'warn'));
         row.appendChild(badge(`${result.steps} tokens`, ''));
 
         const notice = $('replayNotice');
-        if (session.replay_error) {
+        if (result.failure) {
+          notice.hidden = false;
+          notice.textContent = `The guarantee did not hold: ${result.failure} `
+            + 'The partial stream is animated above rather than being thrown away — a stall is more '
+            + 'informative shown than swallowed.';
+        } else if (session.replay_error) {
           notice.hidden = false;
           notice.textContent = `The stream could not be fully replayed — ${session.replay_error}. `
             + 'The partial stream is animated above. This is the cursor-validation failure the '
-            + 'convergence mask exists to prevent; it can only happen with constrained decoding off.';
+            + 'convergence mask exists to prevent.';
         } else {
           notice.hidden = true;
         }
@@ -1589,13 +1603,37 @@
       function syncModeUI() {
         const mode = currentMode();
         const constrained = $('constrained').checked;
+        const converge = $('converge').checked && constrained;
+        $('converge').disabled = !constrained;
+
+        // Continuation windows carry a <WRITTEN> tail. Composition was
+        // trained that way; Aalto sentences average ~43 chars and never ran
+        // past one window, so a transcription run long enough to need a
+        // second window is asking for a prompt shape that never existed.
+        const chars = elements.targetText.value.length;
+        const multiWindow = chars > 250;
+        const warn = $('convergeWarning');
+        if (!converge) {
+          warn.hidden = false;
+          warn.textContent = 'Without the guarantee, nothing checks the output against your text. '
+            + 'The grammar mask only ensures a well-formed keystroke stream, so a fumbled word is '
+            + 'never corrected — this is how "sphere" ends up as "spher".';
+        } else if (mode === 'transcription' && multiWindow) {
+          warn.hidden = false;
+          warn.textContent = `${chars} characters needs more than one window, and transcription was `
+            + 'trained on ~43-character sentences that never spanned windows. It will still converge, '
+            + 'but switch to Composition for text this long — that is the mode whose continuation '
+            + 'prompts the model actually saw.';
+        } else {
+          warn.hidden = true;
+        }
         // Each knob is inert in one of the two modes -- REV is 0 in every
         // transcription row of the corpus, EUNC is 0 in every composition row
         // by construction -- so the dead one is disabled rather than left to
         // imply it does something.
         $('euncControl').classList.toggle('disabled', mode === 'composition');
         $('revControl').classList.toggle('disabled', mode === 'transcription');
-        $('convergenceGroup').hidden = !(mode === 'composition' && constrained);
+        $('convergenceGroup').hidden = !(converge || (mode === 'composition' && constrained));
         const trained = (info && info.checkpoint && info.checkpoint.modes) || null;
         const untrained = trained && !trained.includes(mode);
         $('modeHint').textContent = mode === 'transcription'
@@ -1850,7 +1888,7 @@
           kv('event mix', mix),
           kv('pauses > 1 s', `${((session.pause_fraction || 0) * 100).toFixed(1)}%`),
           kv('in real band', `${result.serial.filter(r => r.in_band).length} / ${result.serial.length}`),
-          kv('decode', `${result.steps} / ${result.budget} tokens`)
+          kv('decode', result.budget ? `${result.steps} / ${result.budget} tokens` : `${result.steps} tokens`)
         );
         playSession(session, 'Playing');
       }
@@ -1964,6 +2002,7 @@
             temperature: Number(elements.temperature.value),
             seed,
             constrained: $('constrained').checked,
+            converge: $('converge').checked,
             excursion_budget: Number($('excursion').value),
             resolve_progress: Number($('resolve').value)
           });
@@ -2058,6 +2097,8 @@
         radio.addEventListener('change', () => { syncModeUI(); schedulePrompt(); });
       });
       $('constrained').addEventListener('change', syncModeUI);
+      $('converge').addEventListener('change', syncModeUI);
+      elements.targetText.addEventListener('input', syncModeUI);
 
       elements.randomizeSeed.addEventListener('click', () => {
         const random = new Uint32Array(1);
