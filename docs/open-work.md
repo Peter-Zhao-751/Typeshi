@@ -81,6 +81,59 @@ Honest caveat: this closes a *measurement* artifact. It may reveal that the
 model's revision behavior is merely close rather than right — but the
 current number cannot tell us, because the mask is what produced it.
 
+## Fix 1b 💻 — "types the whole line, then deletes it all back to one typo"
+
+Observed while using the model interactively: it makes an early mistake,
+keeps typing to the end, then backspaces the entire line to reach the typo,
+fixes it, and retypes everything. No human does this. It is a decoder bug,
+and it compounds with Fix 1.
+
+Cause, verified directly: `_prefix_edit_depth` measures **edit distance to
+the nearest target prefix**, and that does not grow as you type past a
+divergence. With target `"hello world this is a longer sentence…"` and the
+model having typed `"helo"` and continued correctly:
+
+| chars typed | edit-distance depth | chars past divergence |
+|---|---|---|
+| 4 | 1 | 1 |
+| 20 | 1 | 17 |
+| 47 | **1** | **44** |
+
+`excursion_budget` is 4, so resolution never fires — depth stays at 1
+forever. The error is only forced at the very end, when EOS is blocked
+because `buffer != target`. And because cursor ops are gated behind
+`excursions_open` (Fix 1), the only repair route available is
+backspace-all-the-way-back.
+
+This is a stage-2 regression. Stage 1 measured depth as
+`len(text) - common_prefix_len(text, target)` — the "chars past divergence"
+column — which *would* have hit the budget four characters after the typo
+and forced a local fix. Stage 2 generalized depth to edit distance so that
+legitimate mid-buffer repairs would not count as off-path, which is correct
+for that purpose but removed the pressure to correct promptly.
+
+Do **not** simply revert to the suffix rule: during a legitimate cursor
+repair the text is briefly far from a prefix (`"helo world"` has suffix
+distance 7 while its edit distance is 1), so a suffix-based budget would
+forbid exactly the repair it wants to encourage.
+
+Proposed fix — measure *staleness*, not distance:
+1. Keep `_prefix_edit_depth` for the on-path test (`depth == 0`) and for
+   deciding whether resolution is possible.
+2. Add `events_since_on_path`, incremented per emitted event and reset
+   whenever `depth == 0`. When it exceeds a small window (8–12 events —
+   roughly when a human notices), force repair moves only.
+3. "Repair moves" must include cursor ops toward the divergence point, not
+   just BKSP; otherwise the fix reproduces the same delete-everything
+   behavior. This is why Fix 1 lands first.
+4. Termination still holds: the repair set always contains BKSP, which
+   strictly shrinks the buffer, and the empty buffer is on-path.
+
+Test it offline by asserting that a sampler which types one wrong character
+and then continues is forced into repair within the window, and that the
+resulting stream's backspace run is short rather than the length of
+everything typed since the mistake.
+
 ## Fix 2 🖥 — preference optimization, done properly this time
 
 RAFT round 1 is a measured null: 800 targets × 4 candidates, discriminator
