@@ -71,6 +71,7 @@ def main() -> None:
     print(f"scoring against {len(test_writers)} held-out writers", flush=True)
 
     real, fake, requested = [], [], []
+    scored_writers: list[str] = []
     failures: list[dict] = []
     attempts = converged = 0
     max_attempts = 2 * args.n
@@ -112,6 +113,7 @@ def main() -> None:
             if replay(gen) != target:
                 break  # defensive; generate_windowed raises instead
             converged += 1
+            scored_writers.append(writer)
             real.append(events)
             fake.append(gen)
             requested.append(labels)
@@ -134,9 +136,17 @@ def main() -> None:
     if len(real) >= 10:
         rt_real = [codec_roundtrip(s) for s in real]
         rt_fake = [codec_roundtrip(s) for s in fake]
-        _, acc_model = train_discriminator(rt_real, rt_fake, paired=True)
+        # Writer-grouped, for the reason documented in run_eval.py: KLiCKe
+        # writers contribute several sessions, so pair-grouped folds let the
+        # classifier score typist recognition as a proxy for realism.
+        _, acc_model = train_discriminator(
+            rt_real, rt_fake, paired=True, writers=scored_writers
+        )
+        _, acc_model_pair = train_discriminator(rt_real, rt_fake, paired=True)
         shuffled = [shuffle_timing(s, seed=i) for i, s in enumerate(rt_real)]
-        _, teeth = train_discriminator(rt_real, shuffled, paired=True)
+        _, teeth = train_discriminator(
+            rt_real, shuffled, paired=True, writers=scored_writers
+        )
         control = real_vs_real_control(rt_real)
         realized = [realized_labels(g, t) for g, t in
                     zip(rt_fake, (replay(f) for f in fake))]
@@ -147,7 +157,10 @@ def main() -> None:
             "pass_control_near_chance": CONTROL_BAND[0] <= control <= CONTROL_BAND[1],
         }
         report.update({
+            "writer_grouped_cv": True,
+            "distinct_writers_scored": len(set(scored_writers)),
             "discriminator_accuracy_vs_model": acc_model,
+            "discriminator_accuracy_vs_model_pair_grouped": acc_model_pair,
             "discriminator_accuracy_vs_shuffled_real": teeth,
             "discriminator_accuracy_real_vs_real_control": control,
             "distributional": compare_sessions(rt_real, rt_fake),
