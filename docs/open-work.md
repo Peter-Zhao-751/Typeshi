@@ -6,6 +6,13 @@ the rented GPU is released. The narrative record of how we got here is
 
 **Legend:** 💻 = no GPU needed (do this locally) · 🖥 = needs a GPU box.
 
+The split is between *implementing* and *measuring*. Every fix below can be
+written and unit-tested on a laptop; Fixes 1, 3 and 4 then need one GPU
+eval run to confirm the effect, and Fix 5 needs two or three. Only Fix 2
+needs the GPU for the work itself. The efficient pattern is therefore:
+do all the local work first, then rent a box once and run every pending
+measurement in a single session.
+
 ## Where the project stands
 
 | Model | What it is | Verdict |
@@ -101,13 +108,48 @@ A real attempt should change the mechanism, not the dosage:
 4. **Guard the marginals.** Gate each round on distributional KLs not
    regressing (the RAFT round would have failed such a gate at pause 1.22).
 
-Rough cost: generation dominates — 5k targets × 16 candidates at the
-measured rate is on the order of 10–20 GPU-hours per round, plus training.
-Worth one well-designed round, not an open-ended series.
+**Cost, measured rather than guessed — and the prerequisite nobody
+noticed.** RAFT round 1 generated 3,200 candidates (800 targets × K=4) in
+**8h03m** (16:55:34 → 00:58:40): ~400 candidates/hour. At that rate the
+5k × K=16 round above is **200 GPU-hours** — roughly $500 and eight days.
+Not viable, and an earlier draft of this file put it at "10–20 hours",
+which was wrong by an order of magnitude.
 
-Preparation that needs no GPU 💻: write the pair-construction script and
-the DPO training entry point, with offline tests on synthetic candidate
-sets, so the GPU is only rented for the run itself.
+The reason is that `gen_raft_data.py` generates **one candidate at a
+time**. But the K candidates for a target all share an identical prompt,
+which is exactly the case batching handles: same prompt length means the
+transcription grammar processor's position parity is shared across rows
+(`generated = input_ids.shape[1] - prompt_len`, and `mask[:, allowed] = 0`
+is already batch-shaped), and `GumbelSampleProcessor` draws
+`torch.rand(scores.shape)` so every row gets independent noise. Both
+existing processors are batch-safe for this pattern **today** — only the
+driver loop assumes one sequence.
+
+(`ConvergenceProcessor` is *not* batch-safe — it carries a per-sequence
+buffer — but RAFT is transcription-mode and doesn't use it. Batching
+composition generation is a separate, larger job.)
+
+So the real prerequisite is 💻 **batched candidate generation**: emit K
+candidates per `model.generate` call. Expect ~10× throughput at K=16
+(not 16× — overhead), turning 80,000 candidates into roughly 20 GPU-hours.
+Write and test this locally *before* renting anything; a preference round
+run at today's throughput would be an underpowered repeat of the
+experiment that already returned null.
+
+Preparation that needs no GPU 💻: batched generation, the pair-construction
+script, and the DPO training entry point, with offline tests on synthetic
+candidate sets, so the GPU is rented only for the run itself.
+
+**No one can promise this round works.** The honest prior is poor: four
+independent levers (8× data, 3× epochs, temperature, best-of-4 selection)
+all returned null on this gate, and the residual signal is diffuse — no
+discriminator feature above 0.092 importance. What the design above buys
+is not a guarantee but a *decisive* result: enough statistical power to
+distinguish "preference optimization doesn't move this" from "our
+preference round was too weak to tell", which round 1 could not do.
+Preregister the stopping rule before spending: one round, and it must
+improve paired CV accuracy **and** not regress any distributional KL
+(the RAFT round would have failed that second condition at pause 1.22).
 
 ## Fix 3 💻/🖥 — the residual convergence failures
 
