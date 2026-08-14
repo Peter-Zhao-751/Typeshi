@@ -1,0 +1,87 @@
+{
+  "sessions_scored": 100,
+  "generation_attempts": 131,
+  "convergence_rate": 0.7633587786259542,
+  "temperature": 1.0,
+  "constrained_convergent_decoding": true,
+  "codec_roundtripped_real": true,
+  "held_out_writers_only": true,
+  "discriminator_accuracy_vs_model": 0.9649999999999999,
+  "discriminator_accuracy_vs_shuffled_real": 0.99,
+  "discriminator_accuracy_real_vs_real_control": 0.49000000000000005,
+  "distributional": {
+    "iki": {
+      "kl": 0.13906896141830738,
+      "frechet": 0.25083522954508936
+    },
+    "hold": {
+      "kl": 0.008458666989286346,
+      "frechet": 0.0018752462597009323
+    },
+    "pause": {
+      "kl": 0.025776958276196336,
+      "frechet": 0.023768847481498077
+    },
+    "burst": {
+      "kl": 0.2723209492181239,
+      "frechet": 0.6333364205966974
+    }
+  },
+  "signatures": {
+    "pause_clause_boundary": {
+      "kl": 0.16866781572051717,
+      "frechet": 0.11154394678235113
+    },
+    "pause_word_boundary": {
+      "kl": 0.14062456819492447,
+      "frechet": 0.1868940904531028
+    },
+    "pause_within_word": {
+      "kl": 0.13218560069325305,
+      "frechet": 0.1235244954427265
+    },
+    "p_burst": {
+      "kl": 0.44929864123564967,
+      "frechet": 1.293118976910315
+    },
+    "revision_episode_lengths": {
+      "kl": 0.14676493355475037,
+      "frechet": 0.017964493481075212
+    },
+    "bksp_frac": {
+      "kl": 4.11481531112213,
+      "frechet": 0.003591267801076214
+    },
+    "cursor_count": {
+      "kl": 7.0989329417047085,
+      "frechet": 5.263007924496048
+    },
+    "seldel_count": {
+      "kl": 4.914817438052208,
+      "frechet": 1.148909949865875
+    }
+  },
+  "knob_fidelity": {
+    "wpm": {
+      "r": 0.42808496388596534,
+      "mae": 8.655259767570213
+    },
+    "corrected_error_rate": {
+      "r": 0.062345083757829454,
+      "mae": 0.13795787220391859
+    },
+    "uncorrected_error_rate": {
+      "r": null,
+      "mae": 0.0
+    },
+    "revision_rate": {
+      "r": 0.09628720018366171,
+      "mae": 0.007008761463341205
+    }
+  },
+  "pass_convergence": false,
+  "pass_model": false,
+  "pass_serial_dependence_teeth": true,
+  "pass_control_near_chance": true,
+  "tier2_provisional_met": false
+}

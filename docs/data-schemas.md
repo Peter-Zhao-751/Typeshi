@@ -176,3 +176,100 @@ Useful `metadata_participants.txt` fields: `KEYBOARD_TYPE`
    keystroke shifts every later character.
 6. **Mobile is out of scope** per the plan. Filter to `KEYBOARD_TYPE` in
    {`full`, `laptop`} via `aalto.physical_keyboard_participants()`.
+
+---
+
+## How We Type (DRAFT — schema read off the bytes 2026-08-13, adapter new)
+
+Source: `data/raw/howwetype/`. Downloaded from Zenodo record 4034268
+(`zenodo.org/record/4034268`), linked from `userinterfaces.aalto.fi/how-we-type/`.
+Only the small files were taken — `Typing.zip` (733 kB), `Readme.txt`,
+`keyboard_flat_coordinates.csv`, `Background.xlsx`. The mocap / eye tracking /
+video archives (≈300 GB total) were **not** downloaded.
+
+**License: CC BY-NC 4.0** (declared on the Zenodo record). The bundled
+`Readme.txt` grants use "for non-commercial use in your own research with
+attribution" and requires citing Feit, Weir & Oulasvirta, *How We Type:
+Movement Strategies and Performance in Everyday Typing*, CHI 2016
+(doi 10.1145/2858036.2858233). Non-commercial only, same caveat as Aalto 136M.
+
+**Why this corpus:** every keypress is annotated with the finger that pressed
+it (from motion capture), which turns same-finger detection into supervised
+ground truth for the keyboard-reconstruction workstream.
+
+### Layout
+
+| Path | Contents |
+|---|---|
+| `Typing/<user>_log_Sentences_<epoch>_matched.txt` | 30 logs, one per participant, 49–50 sentence blocks each, 36,955 keypress rows total |
+| `Typing/Background.xlsx`, `Background.xlsx` | Post-study survey (duplicated inside and outside the zip) |
+| `keyboard_flat_coordinates.csv` | Per-key x/y/z of key centers, Escape at origin; Swedish/Finnish physical layout |
+| `Readme.txt` | Official column documentation and license |
+
+This release contains only the `sentences` condition; the paper's `random` and
+`mix` conditions are not included (per the readme).
+
+### Typing log columns
+
+**TAB-separated with a `.txt` extension.** One row = one keypress (down only —
+**there are no key-release times anywhere in this corpus**). Actual header,
+which disagrees with the readme (extra `wpm`, `sd_iki`; `finger` values are
+`L_Index`-style, not the readme's `Hands_L_L4` marker names):
+
+| Column | Dtype | Meaning |
+|---|---|---|
+| `` (unnamed) | Int64 | 0-based row counter |
+| `input_time` | Float64 | Press time, **Unix epoch seconds** with ms decimals — needs ×1000 and rebasing |
+| `user_id` | Int64 | Participant (4–6 digit number; also in the filename) |
+| `stimulus_id` | Int64 | The presented sentence — **this is the session key**, like Aalto's `TEST_SECTION_ID` |
+| `input_index` | Int64 | Row index within the stimulus block (counts modifier rows too) |
+| `iki` | Int64 | Inter-key interval, ms; 0 on the block's first row; ≈ press-time delta ±1 ms rounding |
+| `input` | String | The rendered output: literal char, `_` for space, `\x08` for backspace, modifier names, or **multi-char dead-key artifacts** (`` `? ``, `´´`, `''`) |
+| `key_symbol` | String | X11 keysym: lowercase letters, `space`, `BackSpace`, `Shift_L`/`Shift_R`, `period`, `question`, `adiaeresis` (ä), `odiaeresis` (ö), `aring` (å), `Multi_key`, … |
+| `current_input` | String | The submitted response for this block, **constant across the block** (filled in retroactively) — the replay ground truth, like Aalto's `USER_INPUT` |
+| `wpm` / `sd_iki` | Float64 | Per-block aggregate stats, constant across the block |
+| `finger` | String | **The finger annotation**: `{L,R}_{Thumb,Index,Middle,Ring,Little}`, zero nulls in the release |
+| `right_hand` | Int64 | 1 if the right hand pressed the key |
+| `stimulus` | String | Target sentence shown (mostly Finnish, some English); constant across the block |
+| `bigram` / `last_input` / `last_finger` | String | Previous-key context, `*`/`NaN` on block-initial rows — derived, ignored by the adapter |
+
+### Quirks
+
+1. **No key releases.** Only key-down times exist. The adapter sets
+   `release_time = press_time`; hold-time statistics cannot come from this
+   corpus.
+2. **Letters are logged lowercase even when shifted.** `Shift_L` + `s`
+   producing "S" logs `key_symbol='s'`, `input='s'`. Shifted *symbols* arrive
+   already resolved (`question` → `?`, `exclam` → `!`), and shifted Nordic
+   letters occasionally arrive as capital keysyms (`Aring` → `Å`). Case is
+   reconstructed by capitalizing the first character-producing keypress after
+   a Shift row; verified by replay, 98.1% of blocks reproduce `current_input`
+   byte-exact and 99.87% score ≥ 0.90 edit similarity (the 2 failures are
+   rollover-corrupted logs, same shape as the other corpora — dropped by the
+   gate).
+3. **Read WITH quote handling — the opposite of Aalto.** These files were
+   written with CSV quoting: fields containing `"` are wrapped in quotes with
+   internal quotes doubled (`""""` = one literal `"`). Reading with
+   `quote_char=None` leaves those artifacts in `input`/`current_input` and
+   costs replay exactness; the default quote char parses them cleanly and row
+   counts are identical either way.
+4. **No Enter/Return rows.** The block just ends; `stimulus_id` increments on
+   the next row.
+5. **Dead-key artifacts.** 10 rows have multi-char `input` (`` `? ``, `´´`,
+   `´k`, `''`, `´\x08`) from the acute/compose dead keys on the Finnish
+   layout. The adapter emits one KEY event per rendered char at the same
+   timestamp; blocks the artifacts corrupt fail the replay gate and are
+   dropped.
+6. **One file has a phantom `Unnamed: 10` column** (549687). Select columns by
+   name, never by position.
+7. **Timestamps are coarse.** Keypresses were polled at 40 ms (readme), so
+   IKIs are quantized — do not mix this corpus into hold-time or
+   fine-IKI distribution training without remembering that.
+8. **One block is non-monotonic in `input_time`** (rollover, as in the other
+   corpora). Sort by `input_time` before parsing.
+9. **`keyboard_flat_coordinates.csv` is TAB-separated despite the name**, 62
+   rows, and the key `0` appears twice with different coordinates (top-row vs
+   numpad, most likely). Coordinates are meters-ish normalized with Escape at
+   (0,0,0).
+10. **`stimulus` ≠ `current_input` in 18% of blocks** — participants made
+   uncorrected errors. Gate replay against `current_input`, not `stimulus`.

@@ -1,0 +1,83 @@
+	input_time	user_id	stimulus_id	input_index	iki	input	key_symbol	current_input	wpm	sd_iki	finger	right_hand	stimulus	bigram	last_input	last_finger
+0	1438155314.017	900001	0	0	0	Shift_L	Shift_L	Se olisi hienoa.	56.990	263.330	L_Little	0	Se olisi hienoa.	*Shift_L	*	NaN
+1	1438155314.298	900001	0	1	281	s	s	Se olisi hienoa.	56.990	263.330	L_Index	0	Se olisi hienoa.	Shift_Ls	Shift_L	L_Little
+2	1438155314.516	900001	0	2	217	e	e	Se olisi hienoa.	56.990	263.330	L_Index	0	Se olisi hienoa.	se	s	L_Index
+3	1438155314.734	900001	0	3	217	_	space	Se olisi hienoa.	56.990	263.330	R_Index	1	Se olisi hienoa.	e_	e	L_Index
+4	1438155314.984	900001	0	4	250	o	o	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	_o	_	R_Index
+5	1438155315.140	900001	0	5	156	l	l	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	ol	o	R_Middle
+6	1438155315.358	900001	0	6	217	i	i	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	li	l	R_Middle
+7	1438155315.483	900001	0	7	125	s	s	Se olisi hienoa.	56.990	263.330	L_Ring	0	Se olisi hienoa.	is	i	R_Middle
+8	1438155315.546	900001	0	8	62	i	i	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	si	s	L_Ring
+9	1438155315.733	900001	0	9	187	_	space	Se olisi hienoa.	56.990	263.330	R_Index	1	Se olisi hienoa.	i_	i	R_Middle
+10	1438155315.951	900001	0	10	217	h	h	Se olisi hienoa.	56.990	263.330	R_Index	1	Se olisi hienoa.	_h	_	R_Index
+11	1438155316.076	900001	0	11	125	i	i	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	hi	h	R_Index
+12	1438155316.201	900001	0	12	125	e	e	Se olisi hienoa.	56.990	263.330	L_Middle	0	Se olisi hienoa.	ie	i	R_Middle
+13	1438155316.294	900001	0	13	92	n	n	Se olisi hienoa.	56.990	263.330	R_Index	1	Se olisi hienoa.	en	e	L_Middle
+14	1438155316.482	900001	0	14	188	o	o	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	no	n	R_Index
+15	1438155316.606	900001	0	15	123	a	a	Se olisi hienoa.	56.990	263.330	L_Little	0	Se olisi hienoa.	oa	o	R_Middle
+16	1438155317.386	900001	0	16	779	.	period	Se olisi hienoa.	56.990	263.330	R_Middle	1	Se olisi hienoa.	a.	a	L_Little
+62	1438155332.550	900001	3	0	0	Shift_L	Shift_L	Mitä sinä kuulet?	39.630	279.320	L_Little	0	Mitä sinä kuulet?	*Shift_L	*	NaN
+63	1438155332.737	900001	3	1	187	m	m	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	Shift_Lm	Shift_L	L_Little
+64	1438155332.924	900001	3	2	187	i	i	Mitä sinä kuulet?	39.630	279.320	R_Middle	1	Mitä sinä kuulet?	mi	m	R_Index
+65	1438155333.049	900001	3	3	125	t	t	Mitä sinä kuulet?	39.630	279.320	L_Index	0	Mitä sinä kuulet?	it	i	R_Middle
+66	1438155333.454	900001	3	4	404	ä	adiaeresis	Mitä sinä kuulet?	39.630	279.320	R_Little	1	Mitä sinä kuulet?	tä	t	L_Index
+67	1438155333.673	900001	3	5	219	_	space	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	ä_	ä	R_Little
+68	1438155333.798	900001	3	6	125	s	s	Mitä sinä kuulet?	39.630	279.320	L_Ring	0	Mitä sinä kuulet?	_s	_	R_Index
+69	1438155333.922	900001	3	7	123	i	i	Mitä sinä kuulet?	39.630	279.320	R_Middle	1	Mitä sinä kuulet?	si	s	L_Ring
+70	1438155334.047	900001	3	8	125	n	n	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	in	i	R_Middle
+71	1438155334.390	900001	3	9	343	ö	odiaeresis	Mitä sinä kuulet?	39.630	279.320	R_Little	1	Mitä sinä kuulet?	nö	n	R_Index
+72	1438155334.398	900001	3	10	0	ä	adiaeresis	Mitä sinä kuulet?	39.630	279.320	R_Little	1	Mitä sinä kuulet?	öä	ö	R_Little
+73	1438155335.046	900001	3	11	655		BackSpace	Mitä sinä kuulet?	39.630	279.320	R_Ring	1	Mitä sinä kuulet?	ä	ä	R_Little
+74	1438155335.202	900001	3	12	155		BackSpace	Mitä sinä kuulet?	39.630	279.320	R_Ring	1	Mitä sinä kuulet?			R_Ring
+75	1438155335.794	900001	3	13	592	ä	adiaeresis	Mitä sinä kuulet?	39.630	279.320	R_Ring	1	Mitä sinä kuulet?	ä		R_Ring
+76	1438155336.013	900001	3	14	219	_	space	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	ä_	ä	R_Ring
+77	1438155336.200	900001	3	15	187	k	k	Mitä sinä kuulet?	39.630	279.320	R_Middle	1	Mitä sinä kuulet?	_k	_	R_Index
+78	1438155336.418	900001	3	16	217	u	u	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	ku	k	R_Middle
+79	1438155336.574	900001	3	17	155	u	u	Mitä sinä kuulet?	39.630	279.320	R_Index	1	Mitä sinä kuulet?	uu	u	R_Index
+80	1438155336.762	900001	3	18	188	l	l	Mitä sinä kuulet?	39.630	279.320	R_Middle	1	Mitä sinä kuulet?	ul	u	R_Index
+81	1438155336.886	900001	3	19	123	e	e	Mitä sinä kuulet?	39.630	279.320	L_Middle	0	Mitä sinä kuulet?	le	l	R_Middle
+82	1438155337.042	900001	3	20	156	t	t	Mitä sinä kuulet?	39.630	279.320	L_Index	0	Mitä sinä kuulet?	et	e	L_Middle
+83	1438155337.417	900001	3	21	375	Shift_L	Shift_L	Mitä sinä kuulet?	39.630	279.320	L_Little	0	Mitä sinä kuulet?	tShift_L	t	L_Index
+84	1438155337.698	900001	3	22	280	?	question	Mitä sinä kuulet?	39.630	279.320	R_Middle	1	Mitä sinä kuulet?	Shift_L?	Shift_L	L_Little
+111	1438155345.966	900001	5	0	0	Shift_L	Shift_L	Missä olet?	54.950	209.500	L_Little	0	Missä olet?	*Shift_L	*	NaN
+112	1438155346.246	900001	5	1	279	m	m	Missä olet?	54.950	209.500	R_Index	1	Missä olet?	Shift_Lm	Shift_L	L_Little
+113	1438155346.434	900001	5	2	187	i	i	Missä olet?	54.950	209.500	R_Middle	1	Missä olet?	mi	m	R_Index
+114	1438155346.652	900001	5	3	217	s	s	Missä olet?	54.950	209.500	L_Ring	0	Missä olet?	is	i	R_Middle
+115	1438155346.839	900001	5	4	187	s	s	Missä olet?	54.950	209.500	L_Ring	0	Missä olet?	ss	s	L_Ring
+116	1438155346.995	900001	5	5	155	ä	adiaeresis	Missä olet?	54.950	209.500	R_Little	1	Missä olet?	sä	s	L_Ring
+117	1438155347.214	900001	5	6	219	_	space	Missä olet?	54.950	209.500	R_Index	1	Missä olet?	ä_	ä	R_Little
+118	1438155347.370	900001	5	7	155	o	o	Missä olet?	54.950	209.500	R_Middle	1	Missä olet?	_o	_	R_Index
+119	1438155347.557	900001	5	8	187	l	l	Missä olet?	54.950	209.500	R_Middle	1	Missä olet?	ol	o	R_Middle
+120	1438155347.650	900001	5	9	93	e	e	Missä olet?	54.950	209.500	L_Middle	0	Missä olet?	le	l	R_Middle
+121	1438155347.806	900001	5	10	155	t	t	Missä olet?	54.950	209.500	L_Index	0	Missä olet?	et	e	L_Middle
+122	1438155348.150	900001	5	11	344	Shift_L	Shift_L	Missä olet?	54.950	209.500	L_Little	0	Missä olet?	tShift_L	t	L_Index
+123	1438155348.368	900001	5	12	217	?	question	Missä olet?	54.950	209.500	R_Middle	1	Missä olet?	Shift_L?	Shift_L	L_Little
+280	1438770062.549	900002	11	0	0	Shift_R	Shift_R	Missä olet?	58.770	174.950	R_Little	1	Missä olet?	*Shift_R	*	NaN
+281	1438770062.674	900002	11	1	125	m	m	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	Shift_Rm	Shift_R	R_Little
+282	1438770062.830	900002	11	2	155	i	i	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	mi	m	R_Index
+283	1438770062.954	900002	11	3	124	s	s	Missä olet?	58.770	174.950	L_Ring	0	Missä olet?	is	i	R_Index
+284	1438770063.079	900002	11	4	125	s	s	Missä olet?	58.770	174.950	L_Ring	0	Missä olet?	ss	s	L_Ring
+285	1438770063.173	900002	11	5	94	ä	adiaeresis	Missä olet?	58.770	174.950	R_Ring	1	Missä olet?	sä	s	L_Ring
+286	1438770063.422	900002	11	6	248	o	o	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	äo	ä	R_Ring
+287	1438770063.766	900002	11	7	344		BackSpace	Missä olet?	58.770	174.950	R_Middle	1	Missä olet?	o	o	R_Index
+288	1438770063.953	900002	11	8	187	_	space	Missä olet?	58.770	174.950	L_Thumb	0	Missä olet?	_		R_Middle
+289	1438770064.109	900002	11	9	155	o	o	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	_o	_	L_Thumb
+290	1438770064.296	900002	11	10	187	l	l	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	ol	o	R_Index
+291	1438770064.390	900002	11	11	94	e	e	Missä olet?	58.770	174.950	L_Middle	0	Missä olet?	le	l	R_Index
+292	1438770064.483	900002	11	12	92	t	t	Missä olet?	58.770	174.950	L_Index	0	Missä olet?	et	e	L_Middle
+293	1438770064.702	900002	11	13	218	Shift_R	Shift_R	Missä olet?	58.770	174.950	R_Little	1	Missä olet?	tShift_R	t	L_Index
+294	1438770064.795	900002	11	14	93	?	question	Missä olet?	58.770	174.950	R_Index	1	Missä olet?	Shift_R?	Shift_R	R_Little
+401	1438770087.790	900002	16	0	0	Shift_R	Shift_R	Onko se ohi?	96.190	123.000	R_Little	1	Onko se ohi?	*Shift_R	*	NaN
+402	1438770087.914	900002	16	1	124	o	o	Onko se ohi?	96.190	123.000	R_Index	1	Onko se ohi?	Shift_Ro	Shift_R	R_Little
+403	1438770088.102	900002	16	2	187	n	n	Onko se ohi?	96.190	123.000	L_Index	0	Onko se ohi?	on	o	R_Index
+404	1438770088.164	900002	16	3	62	k	k	Onko se ohi?	96.190	123.000	R_Index	1	Onko se ohi?	nk	n	L_Index
+405	1438770088.258	900002	16	4	93	o	o	Onko se ohi?	96.190	123.000	R_Middle	1	Onko se ohi?	ko	k	R_Index
+406	1438770088.320	900002	16	5	62	_	space	Onko se ohi?	96.190	123.000	L_Thumb	0	Onko se ohi?	o_	o	R_Middle
+407	1438770088.507	900002	16	6	187	s	s	Onko se ohi?	96.190	123.000	L_Ring	0	Onko se ohi?	_s	_	L_Thumb
+408	1438770088.601	900002	16	7	94	e	e	Onko se ohi?	96.190	123.000	L_Middle	0	Onko se ohi?	se	s	L_Ring
+409	1438770088.663	900002	16	8	62	_	space	Onko se ohi?	96.190	123.000	L_Thumb	0	Onko se ohi?	e_	e	L_Middle
+410	1438770088.819	900002	16	9	155	o	o	Onko se ohi?	96.190	123.000	R_Middle	1	Onko se ohi?	_o	_	L_Thumb
+411	1438770088.913	900002	16	10	94	h	h	Onko se ohi?	96.190	123.000	L_Index	0	Onko se ohi?	oh	o	R_Middle
+412	1438770089.006	900002	16	11	92	i	i	Onko se ohi?	96.190	123.000	R_Index	1	Onko se ohi?	hi	h	L_Index
+413	1438770089.162	900002	16	12	155	Shift_R	Shift_R	Onko se ohi?	96.190	123.000	R_Little	1	Onko se ohi?	iShift_R	i	R_Index
+414	1438770089.287	900002	16	13	125	?	question	Onko se ohi?	96.190	123.000	R_Index	1	Onko se ohi?	Shift_R?	Shift_R	R_Little

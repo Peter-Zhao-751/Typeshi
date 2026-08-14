@@ -46,16 +46,27 @@ class _StreamObserver:
     the convergence processor's, because transcription mode has no such
     processor and a progress view that only worked in composition would be
     the less useful half.
+
+    `seed_text`/`seed_cursor`/`step_offset` continue a windowed run: without
+    them the live view would restart from an empty buffer at every window
+    boundary. Stage-2 cursor ops serialize as plain text rather than as
+    registered tokens, so they are invisible to this replay and the view can
+    drift within a window; generate_windowed recomputes the authoritative
+    buffer at each boundary, which bounds that drift to one window. This is a
+    progress display, never the source of truth.
     """
 
     def __init__(self, tok, prompt_len: int,
-                 callback: Callable[[int, str], None]) -> None:
+                 callback: Callable[[int, str], None],
+                 seed_text: str = "", seed_cursor: int | None = None,
+                 step_offset: int = 0) -> None:
         from typeshi.converge import role_tables
 
         self.prompt_len = prompt_len
         self.callback = callback
+        self.step_offset = step_offset
         _, self._id_char, self._id_kind = role_tables(tok)
-        self.buffer = TextBuffer()
+        self.buffer = TextBuffer(seed_text, seed_cursor)
         self._consumed = 0
 
     def __call__(self, input_ids, scores):
@@ -68,7 +79,7 @@ class _StreamObserver:
                 self.buffer._backspace()
         self._consumed = generated
         try:
-            self.callback(generated, self.buffer.text)
+            self.callback(self.step_offset + generated, self.buffer.text)
         except Exception:  # noqa: BLE001 - a broken UI must not kill decoding
             pass
         return scores
@@ -234,3 +245,193 @@ def generate(
         model, tok, target_text, labels, mode=mode, temperature=temperature,
         max_new_tokens=max_new_tokens, seed=seed, constrained=constrained,
     ).events
+
+
+class ConvergenceError(ValueError):
+    """A windowed run that never typed the target.
+
+    Subclasses ValueError so existing `except ValueError` callers keep
+    working, but carries the partial stream and the per-window progress so a
+    UI can SHOW what happened instead of only reporting that it failed.
+    """
+
+    def __init__(self, message: str, events: list[Event], written: str,
+                 progress: list[int], stalled: bool = False,
+                 cancelled: bool = False) -> None:
+        super().__init__(message)
+        self.events = events
+        self.written = written
+        self.progress = progress
+        self.stalled = stalled
+        self.cancelled = cancelled
+
+
+def _parse_window(text: str) -> list[Event]:
+    """Deserializes a window that may end mid-structure.
+
+    A per-window token budget can cut inside an op spelling ("<CUR:1") or on
+    a dangling gap; trailing fragments carry no completed event, so trim
+    back to the last parseable boundary instead of failing the window.
+    """
+    text = re.sub(r"<DT:\d+>$", "", text)
+    while text:
+        try:
+            return deserialize(text)
+        except ValueError:
+            cut = text.rfind("<")
+            if cut <= 0:
+                return []
+            text = re.sub(r"<DT:\d+>$", "", text[:cut])
+    return []
+
+
+def _shift_events(events: list[Event], offset) -> list[Event]:
+    """Rebase a window's clock-zero events onto the running session clock."""
+    import dataclasses
+
+    out = []
+    for e in events:
+        hold = None if e.release_time is None else e.release_time - e.press_time
+        press = e.press_time + offset
+        out.append(dataclasses.replace(
+            e, press_time=press,
+            release_time=None if hold is None else press + hold,
+        ))
+    return out
+
+
+def generate_windowed(
+    model,
+    tok,
+    target_text: str,
+    labels: SessionLabels,
+    temperature: float = 1.0,
+    seed: int = 0,
+    window_events: int = 512,
+    max_windows: int | None = None,
+    mode: str = "composition",
+    excursion_budget: int = 4,
+    resolve_progress: int = 2,
+    observer: Callable[[int, str], None] | None = None,
+    stop_event=None,
+) -> list[Event]:
+    """Convergence-guaranteed generation in training-shaped windows.
+
+    Composition was trained on windows of at most 512 events with a
+    <WRITTEN> tail carrying buffer state; asking the model for an 800-event
+    essay in ONE generation is out of its trained distribution, and the
+    first Tier-2 run measured the price: 24% of longer essays burned their
+    budget fighting the mask before converging. Each window here re-prompts
+    exactly as training did (build_prompt with written_so_far + cursor), the
+    processor's buffer is pre-seeded, and continuation windows open in GAP
+    slot so the model emits the boundary <DT:> itself.
+
+    Returns the stitched event stream, guaranteed to type `target_text`;
+    raises ConvergenceError (a ValueError) if the window allowance runs out
+    unconverged, carrying the partial stream so a caller can show it.
+    """
+    import torch
+
+    from transformers import LogitsProcessorList
+
+    from typeshi.constrain import GumbelSampleProcessor
+    from typeshi.converge import ConvergenceProcessor
+
+    if max_windows is None:
+        # ~2 events per char at 2 tokens each, plus excursion room, in
+        # window-sized pieces; +2 windows of pure slack.
+        max_windows = 2 + (4 * len(target_text)) // window_events
+
+    # One terminator set for the stop condition AND the truncation. Without
+    # passing it to generate(), the fine-tune samples the EOS its mask unmasks
+    # while HuggingFace watches for the base config's different id and never
+    # stops -- every window would run its full 2*window_events+64 budget.
+    eos_ids = terminator_ids(tok, model)
+
+    events: list[Event] = []
+    written = ""
+    cursor: int | None = None
+    progress: list[int] = []  # on-path chars after each window
+    steps_total = 0
+
+    def fail(message: str, stalled: bool = False, cancelled: bool = False):
+        return ConvergenceError(message, events, written, progress,
+                                stalled=stalled, cancelled=cancelled)
+
+    for w in range(max_windows):
+        if stop_event is not None and stop_event.is_set():
+            raise fail(f"cancelled after {w} window(s)", cancelled=True)
+        torch.manual_seed(seed + w)
+        prompt = build_prompt(target_text, labels, mode,
+                              written_so_far=written,
+                              cursor=cursor if written else None)
+        inputs = tok(prompt, return_tensors="pt").to(model.device)
+        prompt_len = inputs["input_ids"].shape[1]
+        proc = ConvergenceProcessor(
+            tok, prompt_len, target_text,
+            excursion_budget=excursion_budget,
+            resolve_progress=resolve_progress,
+            written_so_far=written, cursor=cursor,
+        )
+        chain = [proc, GumbelSampleProcessor(temperature=temperature, seed=seed + w)]
+        if observer is not None:
+            # Seeded with the running buffer and offset by the tokens already
+            # spent, so the live view is of the WHOLE session rather than
+            # restarting from empty at every window boundary.
+            chain.append(_StreamObserver(tok, prompt_len, observer,
+                                         seed_text=written, seed_cursor=cursor,
+                                         step_offset=steps_total))
+        extra = {}
+        if stop_event is not None:
+            from transformers import StoppingCriteriaList
+
+            extra["stopping_criteria"] = StoppingCriteriaList(
+                [_StopSignal(stop_event)]
+            )
+        out = model.generate(
+            **inputs, do_sample=False,
+            max_new_tokens=2 * window_events + 64,
+            pad_token_id=tok.pad_token_id,
+            eos_token_id=sorted(eos_ids),
+            logits_processor=LogitsProcessorList(chain),
+            **extra,
+        )
+        new_ids = out[0][prompt_len:].tolist()
+        steps_total += len(new_ids)
+        for j, token_id in enumerate(new_ids):
+            if token_id in eos_ids:
+                new_ids = new_ids[:j]
+                break
+        window = _parse_window(tok.decode(new_ids, skip_special_tokens=False))
+        if not window:
+            if stop_event is not None and stop_event.is_set():
+                raise fail(f"cancelled during window {w}", cancelled=True)
+            raise fail(f"window {w} produced no events")
+        offset = events[-1].press_time if events else 0
+        events += _shift_events(window, offset)
+
+        # Authoritative state: replay everything from scratch each window --
+        # cheaper than proving incremental state equal to the processor's.
+        buf = TextBuffer()
+        for e in events:
+            buf.apply(e)
+        written, cursor = buf.text, buf.cursor
+        if written == target_text:
+            return events
+        # On-path progress, not buffer length: a window that types 40 wrong
+        # characters has advanced nothing, and a stalled series of these is
+        # the failure signature worth naming.
+        on_path = 0
+        for a, b in zip(written, target_text):
+            if a != b:
+                break
+            on_path += 1
+        progress.append(on_path)
+    stalled = len(progress) > 1 and progress[-1] <= progress[-2]
+    raise fail(
+        f"did not converge within {max_windows} windows: "
+        f"{len(events)} events, on-path {progress[-1] if progress else 0}"
+        f"/{len(target_text)} chars, per-window progress {progress}"
+        f"{', STALLED (last window advanced nothing)' if stalled else ''}",
+        stalled=stalled,
+    )
