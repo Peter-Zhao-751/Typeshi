@@ -1,0 +1,5 @@
+==> [16:51:17] RAFT smoke (10 targets, k=2)
+==> [16:55:34] RAFT full (800 targets, k=4)
+==> [00:58:41] RAFT SFT from motor-full
+==> [01:00:47] Tier-1 re-eval of motor-raft
+==> [01:31:23] NIGHT CHAIN DONE

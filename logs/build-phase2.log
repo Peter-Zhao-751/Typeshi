@@ -1,0 +1,10 @@
+aalto: 2000/2500 files
+aalto: dropped 29 sessions (unsupported chars/markers)
+aalto: 32878 examples
+klicke: 2000/4992 files
+klicke: 4000/4992 files
+klicke: dropped 11 sessions (unsupported chars/markers)
+klicke: 27480 examples
+wrote 54328 examples from 5792 writers to data/processed_phase2/train.jsonl
+wrote 6030 examples from 641 writers to data/processed_phase2/test.jsonl
+wrote writer split to data/processed_phase2/split.json

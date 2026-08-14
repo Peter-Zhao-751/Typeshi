@@ -1,0 +1,73 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 839.36it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<01:22,  5.13it/s]Loading weights:   6%|▌         | 26/426 [00:00<00:03, 105.84it/s]Loading weights:  11%|█         | 45/426 [00:00<00:02, 135.47it/s]Loading weights:  15%|█▌        | 65/426 [00:00<00:02, 149.65it/s]Loading weights:  21%|██        | 89/426 [00:00<00:01, 172.43it/s]Loading weights:  25%|██▌       | 108/426 [00:00<00:01, 161.65it/s]Loading weights:  30%|███       | 129/426 [00:00<00:01, 175.28it/s]Loading weights:  35%|███▍      | 148/426 [00:00<00:01, 164.73it/s]Loading weights:  40%|███▉      | 170/426 [00:01<00:01, 179.39it/s]Loading weights:  44%|████▍     | 189/426 [00:01<00:01, 170.13it/s]Loading weights:  49%|████▊     | 207/426 [00:01<00:01, 163.24it/s]Loading weights:  55%|█████▌    | 235/426 [00:01<00:00, 191.49it/s]Loading weights:  60%|█████▉    | 255/426 [00:01<00:00, 185.60it/s]Loading weights:  65%|██████▌   | 277/426 [00:01<00:00, 187.95it/s]Loading weights:  71%|███████   | 301/426 [00:01<00:00, 200.58it/s]Loading weights:  76%|███████▌  | 322/426 [00:01<00:00, 193.27it/s]Loading weights:  81%|████████  | 345/426 [00:02<00:00, 198.83it/s]Loading weights:  86%|████████▌ | 366/426 [00:02<00:00, 195.56it/s]Loading weights:  92%|█████████▏| 394/426 [00:02<00:00, 217.98it/s]Loading weights:  98%|█████████▊| 417/426 [00:02<00:00, 195.55it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 178.36it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+using the split bound to the checkpoint: checkpoints/motor-phase2/split.json
+scoring 641 held-out writers from checkpoints/motor-phase2/split.json
+  attempt 10: 9 valid, 0 malformed, 0 wrong-text
+  attempt 20: 19 valid, 0 malformed, 0 wrong-text
+  attempt 30: 29 valid, 0 malformed, 0 wrong-text
+  attempt 40: 38 valid, 0 malformed, 1 wrong-text
+  attempt 50: 48 valid, 0 malformed, 1 wrong-text
+  attempt 60: 58 valid, 0 malformed, 1 wrong-text
+  attempt 70: 68 valid, 0 malformed, 1 wrong-text
+  attempt 80: 78 valid, 0 malformed, 1 wrong-text
+  attempt 90: 88 valid, 0 malformed, 1 wrong-text
+  attempt 100: 98 valid, 0 malformed, 1 wrong-text
+  attempt 110: 108 valid, 0 malformed, 1 wrong-text
+  attempt 120: 118 valid, 0 malformed, 1 wrong-text
+  attempt 130: 128 valid, 0 malformed, 1 wrong-text
+  attempt 140: 138 valid, 0 malformed, 1 wrong-text
+  attempt 150: 148 valid, 0 malformed, 1 wrong-text
+  attempt 160: 158 valid, 0 malformed, 1 wrong-text
+  attempt 170: 168 valid, 0 malformed, 1 wrong-text
+  attempt 180: 178 valid, 0 malformed, 1 wrong-text
+  attempt 190: 188 valid, 0 malformed, 1 wrong-text
+  attempt 200: 198 valid, 0 malformed, 1 wrong-text
+{
+  "sessions_scored": 200,
+  "generation_attempts": 201,
+  "generation_success_rate": 0.9950248756218906,
+  "generations_rejected_as_malformed": 0,
+  "generations_rejected_wrong_text": 1,
+  "sessions_skipped_not_held_out": 6273,
+  "sessions_skipped_unencodable_prompt": 0,
+  "held_out_writers_only": true,
+  "temperature": 1.0,
+  "constrained_decoding": true,
+  "codec_roundtripped_real": true,
+  "distributional": {
+    "iki": {
+      "kl": 0.020797540321870728,
+      "frechet": 0.0002733978707238319
+    },
+    "hold": {
+      "kl": 0.04626277180462596,
+      "frechet": 0.0003888281643527278
+    },
+    "pause": {
+      "kl": 0.582332872720515,
+      "frechet": 0.015438843481938275
+    },
+    "burst": {
+      "kl": 0.07341766330946613,
+      "frechet": 0.0030575639519862703
+    }
+  },
+  "writer_grouped_cv": true,
+  "distinct_writers_scored": 67,
+  "discriminator_accuracy_vs_model": 0.5100151880639686,
+  "discriminator_accuracy_vs_model_pair_grouped": 0.575,
+  "discriminator_accuracy_vs_model_raw_real": 0.85,
+  "discriminator_accuracy_vs_model_timing_only": 0.5462789243277048,
+  "discriminator_accuracy_vs_heuristic_baseline": 1.0,
+  "discriminator_accuracy_vs_shuffled_real": 0.7582864290181364,
+  "discriminator_accuracy_real_vs_real_control": 0.5,
+  "pass_discriminator_has_teeth": true,
+  "pass_serial_dependence_teeth": true,
+  "pass_model": true,
+  "pass_generation_validity": true,
+  "pass_control_near_chance": true,
+  "tier1_met": true,
+  "note_below_chance": null
+}

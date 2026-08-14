@@ -1,0 +1,5 @@
+aalto: dropped 228 sessions (unsupported chars/markers)
+aalto: 263352 examples
+wrote 236489 examples from 16081 writers to data/processed/train.jsonl
+wrote 26863 examples from 1824 writers to data/processed/test.jsonl
+wrote writer split to data/processed/split.json

@@ -1,0 +1,103 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 591.66it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<01:24,  5.03it/s]Loading weights:   6%|▌         | 25/426 [00:00<00:03, 101.42it/s]Loading weights:  10%|▉         | 41/426 [00:00<00:03, 120.97it/s]Loading weights:  14%|█▍        | 61/426 [00:00<00:02, 145.05it/s]Loading weights:  19%|█▉        | 80/426 [00:00<00:02, 153.21it/s]Loading weights:  23%|██▎       | 98/426 [00:00<00:02, 159.05it/s]Loading weights:  28%|██▊       | 118/426 [00:00<00:01, 171.38it/s]Loading weights:  32%|███▏      | 136/426 [00:00<00:01, 168.58it/s]Loading weights:  36%|███▌      | 154/426 [00:01<00:01, 162.59it/s]Loading weights:  42%|████▏     | 177/426 [00:01<00:01, 181.39it/s]Loading weights:  46%|████▌     | 196/426 [00:01<00:01, 182.11it/s]Loading weights:  50%|█████     | 215/426 [00:01<00:01, 175.71it/s]Loading weights:  55%|█████▌    | 236/426 [00:01<00:01, 177.05it/s]Loading weights:  60%|█████▉    | 254/426 [00:01<00:00, 175.99it/s]Loading weights:  65%|██████▌   | 277/426 [00:01<00:00, 170.07it/s]Loading weights:  70%|███████   | 300/426 [00:01<00:00, 183.62it/s]Loading weights:  75%|███████▍  | 319/426 [00:01<00:00, 179.04it/s]Loading weights:  80%|████████  | 341/426 [00:02<00:00, 187.21it/s]Loading weights:  85%|████████▍ | 360/426 [00:02<00:00, 178.44it/s]Loading weights:  89%|████████▉ | 380/426 [00:02<00:00, 171.83it/s]Loading weights:  95%|█████████▌| 406/426 [00:02<00:00, 188.49it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 182.52it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 167.08it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+scoring against 641 held-out writers
+  attempt 10: 8 converged
+  attempt 20: 16 converged
+  attempt 30: 24 converged
+  attempt 40: 33 converged
+  attempt 50: 40 converged
+  attempt 60: 47 converged
+  attempt 70: 53 converged
+  attempt 80: 62 converged
+  attempt 90: 68 converged
+  attempt 100: 77 converged
+  attempt 110: 87 converged
+{
+  "sessions_scored": 100,
+  "generation_attempts": 131,
+  "convergence_rate": 0.7633587786259542,
+  "temperature": 1.0,
+  "constrained_convergent_decoding": true,
+  "codec_roundtripped_real": true,
+  "held_out_writers_only": true,
+  "discriminator_accuracy_vs_model": 0.9649999999999999,
+  "discriminator_accuracy_vs_shuffled_real": 0.99,
+  "discriminator_accuracy_real_vs_real_control": 0.49000000000000005,
+  "distributional": {
+    "iki": {
+      "kl": 0.13906896141830738,
+      "frechet": 0.25083522954508936
+    },
+    "hold": {
+      "kl": 0.008458666989286346,
+      "frechet": 0.0018752462597009323
+    },
+    "pause": {
+      "kl": 0.025776958276196336,
+      "frechet": 0.023768847481498077
+    },
+    "burst": {
+      "kl": 0.2723209492181239,
+      "frechet": 0.6333364205966974
+    }
+  },
+  "signatures": {
+    "pause_clause_boundary": {
+      "kl": 0.16866781572051717,
+      "frechet": 0.11154394678235113
+    },
+    "pause_word_boundary": {
+      "kl": 0.14062456819492447,
+      "frechet": 0.1868940904531028
+    },
+    "pause_within_word": {
+      "kl": 0.13218560069325305,
+      "frechet": 0.1235244954427265
+    },
+    "p_burst": {
+      "kl": 0.44929864123564967,
+      "frechet": 1.293118976910315
+    },
+    "revision_episode_lengths": {
+      "kl": 0.14676493355475037,
+      "frechet": 0.017964493481075212
+    },
+    "bksp_frac": {
+      "kl": 4.11481531112213,
+      "frechet": 0.003591267801076214
+    },
+    "cursor_count": {
+      "kl": 7.0989329417047085,
+      "frechet": 5.263007924496048
+    },
+    "seldel_count": {
+      "kl": 4.914817438052208,
+      "frechet": 1.148909949865875
+    }
+  },
+  "knob_fidelity": {
+    "wpm": {
+      "r": 0.42808496388596534,
+      "mae": 8.655259767570213
+    },
+    "corrected_error_rate": {
+      "r": 0.062345083757829454,
+      "mae": 0.13795787220391859
+    },
+    "uncorrected_error_rate": {
+      "r": null,
+      "mae": 0.0
+    },
+    "revision_rate": {
+      "r": 0.09628720018366171,
+      "mae": 0.007008761463341205
+    }
+  },
+  "pass_convergence": false,
+  "pass_model": false,
+  "pass_serial_dependence_teeth": true,
+  "pass_control_near_chance": true,
+  "tier2_provisional_met": false
+}

@@ -1,0 +1,73 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 562.01it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<01:25,  4.97it/s]Loading weights:   6%|▌         | 26/426 [00:00<00:03, 105.91it/s]Loading weights:  10%|▉         | 42/426 [00:00<00:03, 122.76it/s]Loading weights:  15%|█▌        | 64/426 [00:00<00:02, 154.47it/s]Loading weights:  19%|█▉        | 82/426 [00:00<00:02, 151.42it/s]Loading weights:  23%|██▎       | 99/426 [00:00<00:02, 153.42it/s]Loading weights:  28%|██▊       | 119/426 [00:00<00:01, 167.20it/s]Loading weights:  33%|███▎      | 140/426 [00:00<00:01, 177.08it/s]Loading weights:  37%|███▋      | 159/426 [00:01<00:01, 168.20it/s]Loading weights:  42%|████▏     | 180/426 [00:01<00:01, 177.88it/s]Loading weights:  47%|████▋     | 200/426 [00:01<00:01, 178.59it/s]Loading weights:  51%|█████▏    | 219/426 [00:01<00:01, 176.93it/s]Loading weights:  56%|█████▌    | 239/426 [00:01<00:01, 169.66it/s]Loading weights:  61%|██████    | 258/426 [00:01<00:00, 171.87it/s]Loading weights:  65%|██████▌   | 279/426 [00:01<00:00, 175.74it/s]Loading weights:  71%|███████   | 301/426 [00:01<00:00, 187.85it/s]Loading weights:  75%|███████▌  | 320/426 [00:01<00:00, 176.60it/s]Loading weights:  81%|████████  | 343/426 [00:02<00:00, 181.14it/s]Loading weights:  85%|████████▍ | 362/426 [00:02<00:00, 177.47it/s]Loading weights:  90%|████████▉ | 383/426 [00:02<00:00, 179.95it/s]Loading weights:  94%|█████████▍| 402/426 [00:02<00:00, 178.65it/s]Loading weights:  99%|█████████▊| 420/426 [00:02<00:00, 166.47it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 165.30it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+using the split bound to the checkpoint: checkpoints/motor-full/split.json
+scoring 14850 held-out writers from checkpoints/motor-full/split.json
+  attempt 10: 9 valid, 0 malformed, 0 wrong-text
+  attempt 20: 19 valid, 0 malformed, 0 wrong-text
+  attempt 30: 29 valid, 0 malformed, 0 wrong-text
+  attempt 40: 39 valid, 0 malformed, 0 wrong-text
+  attempt 50: 49 valid, 0 malformed, 0 wrong-text
+  attempt 60: 59 valid, 0 malformed, 0 wrong-text
+  attempt 70: 69 valid, 0 malformed, 0 wrong-text
+  attempt 80: 79 valid, 0 malformed, 0 wrong-text
+  attempt 90: 89 valid, 0 malformed, 0 wrong-text
+  attempt 100: 99 valid, 0 malformed, 0 wrong-text
+  attempt 110: 109 valid, 0 malformed, 0 wrong-text
+  attempt 120: 119 valid, 0 malformed, 0 wrong-text
+  attempt 130: 129 valid, 0 malformed, 0 wrong-text
+  attempt 140: 139 valid, 0 malformed, 0 wrong-text
+  attempt 150: 149 valid, 0 malformed, 0 wrong-text
+  attempt 160: 159 valid, 0 malformed, 0 wrong-text
+  attempt 170: 169 valid, 0 malformed, 0 wrong-text
+  attempt 180: 179 valid, 0 malformed, 0 wrong-text
+  attempt 190: 189 valid, 0 malformed, 0 wrong-text
+  attempt 200: 199 valid, 0 malformed, 0 wrong-text
+{
+  "sessions_scored": 200,
+  "generation_attempts": 200,
+  "generation_success_rate": 1.0,
+  "generations_rejected_as_malformed": 0,
+  "generations_rejected_wrong_text": 0,
+  "sessions_skipped_not_held_out": 0,
+  "sessions_skipped_unencodable_prompt": 0,
+  "held_out_writers_only": true,
+  "temperature": 1.0,
+  "constrained_decoding": true,
+  "codec_roundtripped_real": true,
+  "distributional": {
+    "iki": {
+      "kl": 0.012969300720912569,
+      "frechet": 8.347801366457444e-05
+    },
+    "hold": {
+      "kl": 0.025067286287723232,
+      "frechet": 0.0017284109916090146
+    },
+    "pause": {
+      "kl": 1.3562174482323277,
+      "frechet": 0.0010708608175241708
+    },
+    "burst": {
+      "kl": 0.07005276666891352,
+      "frechet": 0.018039427028926795
+    }
+  },
+  "writer_grouped_cv": true,
+  "distinct_writers_scored": 67,
+  "discriminator_accuracy_vs_model": 0.5129455909943715,
+  "discriminator_accuracy_vs_model_pair_grouped": 0.485,
+  "discriminator_accuracy_vs_model_raw_real": 0.8724999999999999,
+  "discriminator_accuracy_vs_model_timing_only": 0.5429732868757259,
+  "discriminator_accuracy_vs_heuristic_baseline": 0.9974358974358974,
+  "discriminator_accuracy_vs_shuffled_real": 0.7882158491914588,
+  "discriminator_accuracy_real_vs_real_control": 0.4699999999999999,
+  "pass_discriminator_has_teeth": true,
+  "pass_serial_dependence_teeth": true,
+  "pass_model": true,
+  "pass_generation_validity": true,
+  "pass_control_near_chance": true,
+  "tier1_met": true,
+  "note_below_chance": null
+}

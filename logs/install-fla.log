@@ -1,0 +1,207 @@
+Resolved 58 packages in 880ms
+   Building causal-conv1d==1.6.2.post1
+  × Failed to build `causal-conv1d==1.6.2.post1`
+  ├─▶ The build backend returned an error
+  ╰─▶ Call to `setuptools.build_meta.build_wheel` failed (exit status: 1)
+
+      [stdout]
+
+
+      torch.__version__  = 2.13.0+cu130
+
+
+      running bdist_wheel
+      Guessing wheel URL:
+      https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.6.2.post1/causal_conv1d-1.6.2.post1+cu13torch2.13cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+      Precompiled wheel not found. Building from source...
+      running build
+      running build_py
+      creating build/lib.linux-x86_64-cpython-312/causal_conv1d
+      copying causal_conv1d/__init__.py ->
+      build/lib.linux-x86_64-cpython-312/causal_conv1d
+      copying causal_conv1d/causal_conv1d_interface.py ->
+      build/lib.linux-x86_64-cpython-312/causal_conv1d
+      copying causal_conv1d/cpp_functions.py ->
+      build/lib.linux-x86_64-cpython-312/causal_conv1d
+      copying causal_conv1d/causal_conv1d_varlen.py ->
+      build/lib.linux-x86_64-cpython-312/causal_conv1d
+      running build_ext
+
+      [stderr]
+      /home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/wheel/bdist_wheel.py:4:
+      FutureWarning: The 'wheel' package is no longer the canonical location
+      of the 'bdist_wheel' command, and will be removed in a future release.
+      Please update to setuptools v70.1 or later which contains an integrated
+      version of this command.
+        warn(
+      /home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:368:
+      UserWarning: Failed to initialize NumPy: No
+      module named 'numpy' (Triggered internally at
+      /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+        cpu = _conversion_method_template(device=torch.device("cpu"))
+      /home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/dist.py:765:
+      SetuptoolsDeprecationWarning: License classifiers are deprecated.
+      !!
+
+      
+      ********************************************************************************
+              Please consider removing the following classifiers in favor of a
+      SPDX license expression:
+
+              License :: OSI Approved :: BSD License
+
+              See
+      https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license
+      for details.
+      
+      ********************************************************************************
+
+      !!
+        self._finalize_license_expression()
+      W0811 06:19:07.097000 7486 torch/utils/cpp_extension.py:781] Attempted
+      to use ninja as the BuildExtension backend but we could not find ninja..
+      Falling back to using the slow distutils backend.
+      Traceback (most recent call last):
+        File "<string>", line 330, in run
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 240, in urlretrieve
+          with contextlib.closing(urlopen(url, data)) as fp:
+                                  ^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 215, in urlopen
+          return opener.open(url, data, timeout)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 521, in open
+          response = meth(req, response)
+                     ^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 630, in http_response
+          response = self.parent.error(
+                     ^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 559, in error
+          return self._call_chain(*args)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 492, in _call_chain
+          result = func(*args)
+                   ^^^^^^^^^^^
+        File
+      "/home/ubuntu/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/urllib/request.py",
+      line 639, in http_error_default
+          raise HTTPError(req.full_url, code, msg, hdrs, fp)
+      urllib.error.HTTPError: HTTP Error 404: Not Found
+
+      During handling of the above exception, another exception occurred:
+
+      Traceback (most recent call last):
+        File "<string>", line 11, in <module>
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/build_meta.py",
+      line 438, in build_wheel
+          return _build(['bdist_wheel'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/build_meta.py",
+      line 429, in _build
+          return self._build_with_temp_dir(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/build_meta.py",
+      line 410, in _build_with_temp_dir
+          self.run_setup()
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/build_meta.py",
+      line 317, in run_setup
+          exec(code, locals())  # noqa: S102 # exec is intentional here
+          ^^^^^^^^^^^^^^^^^^^^
+        File "<string>", line 350, in <module>
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/__init__.py",
+      line 117, in setup
+          return distutils.core.setup(**attrs)  # type: ignore[return-value]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/core.py",
+      line 168, in setup
+          return run_commands(dist)
+                 ^^^^^^^^^^^^^^^^^^
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/core.py",
+      line 184, in run_commands
+          dist.run_commands()
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/dist.py",
+      line 1028, in run_commands
+          self.run_command(cmd)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/dist.py",
+      line 1106, in run_command
+          super().run_command(command)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/dist.py",
+      line 1047, in run_command
+          cmd_obj.run()
+        File "<string>", line 347, in run
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/command/bdist_wheel.py",
+      line 385, in run
+          self.run_command("build")
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/cmd.py",
+      line 342, in run_command
+          self.distribution.run_command(command)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/dist.py",
+      line 1106, in run_command
+          super().run_command(command)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/dist.py",
+      line 1047, in run_command
+          cmd_obj.run()
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/command/build.py",
+      line 137, in run
+          self.run_command(cmd_name)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/cmd.py",
+      line 342, in run_command
+          self.distribution.run_command(command)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/dist.py",
+      line 1106, in run_command
+          super().run_command(command)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/dist.py",
+      line 1047, in run_command
+          cmd_obj.run()
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/command/build_ext.py",
+      line 95, in run
+          _build_ext.run(self)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/setuptools/_distutils/command/build_ext.py",
+      line 382, in run
+          self.build_extensions()
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/torch/utils/cpp_extension.py",
+      line 817, in build_extensions
+          _check_cuda_version(compiler_name, compiler_version)
+        File
+      "/home/ubuntu/.cache/uv/builds-v0/.tmpIcn4Cd/lib/python3.12/site-packages/torch/utils/cpp_extension.py",
+      line 646, in _check_cuda_version
+          raise RuntimeError(CUDA_MISMATCH_MESSAGE, cuda_str_version,
+      torch.version.cuda)
+      RuntimeError: ('The detected CUDA version (%s) mismatches the version
+      that was used to compilePyTorch (%s). Please make sure to use the same
+      CUDA versions.', '12.8', '13.0')
+
+
+hint: Build failures usually indicate a problem with the package or the build environment

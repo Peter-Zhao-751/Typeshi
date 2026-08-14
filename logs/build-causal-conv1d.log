@@ -1,0 +1,25 @@
+==> [06:40:40] NVIDIA CUDA apt repo (ubuntu2204)
+Selecting previously unselected package cuda-keyring.
+(Reading database ... 213782 files and directories currently installed.)
+Preparing to unpack cuda-keyring.deb ...
+Unpacking cuda-keyring (1.1-1) ...
+Setting up cuda-keyring (1.1-1) ...
+==> [06:40:50] installing cuda-toolkit-13-0 (several GB)
+dpkg-preconfigure: unable to re-open stdin: No such file or directory
+/usr/local/cuda-13
+/usr/local/cuda-13.0
+==> [06:45:56] building causal-conv1d from source
+Cuda compilation tools, release 13.0, V13.0.88
+Build cuda_13.0.r13.0/compiler.36424714_0
+Resolved 32 packages in 277ms
+   Building causal-conv1d==1.6.2.post1
+      Built causal-conv1d==1.6.2.post1
+Prepared 1 package in 8m 36s
+Installed 1 package in 1ms
+ + causal-conv1d==1.6.2.post1
+==> [06:54:33] numerical validation vs pure-torch reference
+fn err: 0.03125
+update err: 0.03056
+transformers sees causal_conv1d: True
+BUILD VALIDATED
+==> [06:54:38] DONE

@@ -1,0 +1,24 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 865.88it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<01:22,  5.16it/s]Loading weights:   6%|▌         | 26/426 [00:00<00:04, 96.63it/s]Loading weights:  11%|█         | 46/426 [00:00<00:03, 125.28it/s]Loading weights:  17%|█▋        | 71/426 [00:00<00:02, 165.17it/s]Loading weights:  22%|██▏       | 92/426 [00:00<00:01, 178.58it/s]Loading weights:  26%|██▋       | 112/426 [00:00<00:01, 176.31it/s]Loading weights:  31%|███       | 131/426 [00:00<00:01, 180.25it/s]Loading weights:  35%|███▌      | 150/426 [00:00<00:01, 173.54it/s]Loading weights:  40%|████      | 171/426 [00:01<00:01, 177.35it/s]Loading weights:  45%|████▍     | 190/426 [00:01<00:01, 176.92it/s]Loading weights:  49%|████▉     | 208/426 [00:01<00:01, 169.16it/s]Loading weights:  54%|█████▍    | 231/426 [00:01<00:01, 179.67it/s]Loading weights:  59%|█████▉    | 252/426 [00:01<00:00, 186.70it/s]Loading weights:  64%|██████▎   | 271/426 [00:01<00:00, 186.92it/s]Loading weights:  68%|██████▊   | 290/426 [00:01<00:00, 186.08it/s]Loading weights:  73%|███████▎  | 309/426 [00:01<00:00, 177.17it/s]Loading weights:  77%|███████▋  | 330/426 [00:01<00:00, 181.24it/s]Loading weights:  82%|████████▏ | 349/426 [00:02<00:00, 179.59it/s]Loading weights:  86%|████████▋ | 368/426 [00:02<00:00, 170.90it/s]Loading weights:  92%|█████████▏| 392/426 [00:02<00:00, 183.96it/s]Loading weights:  96%|█████████▋| 411/426 [00:02<00:00, 184.33it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 169.67it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+800 training targets
+  50/800 targets, 200 candidates
+  100/800 targets, 400 candidates
+  150/800 targets, 600 candidates
+  200/800 targets, 800 candidates
+  250/800 targets, 1000 candidates
+  300/800 targets, 1200 candidates
+  350/800 targets, 1400 candidates
+  400/800 targets, 1600 candidates
+  450/800 targets, 1800 candidates
+  500/800 targets, 2000 candidates
+  550/800 targets, 2200 candidates
+  600/800 targets, 2400 candidates
+  650/800 targets, 2599 candidates
+  700/800 targets, 2799 candidates
+  750/800 targets, 2999 candidates
+  800/800 targets, 3198 candidates
+scoring discriminator paired CV (train writers): 0.5125
+wrote 800 winner examples to data/raft/train.jsonl (skipped 0 non-invertible prompts)
+RAFT DATA DONE

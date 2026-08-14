@@ -1,0 +1,26 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 478.26it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<02:01,  3.49it/s]Loading weights:   5%|▌         | 22/426 [00:00<00:05, 71.81it/s]Loading weights:   9%|▊         | 37/426 [00:00<00:04, 95.55it/s]Loading weights:  12%|█▏        | 51/426 [00:00<00:03, 100.77it/s]Loading weights:  15%|█▌        | 66/426 [00:00<00:03, 113.26it/s]Loading weights:  19%|█▉        | 81/426 [00:00<00:02, 117.73it/s]Loading weights:  22%|██▏       | 95/426 [00:00<00:02, 123.71it/s]Loading weights:  26%|██▌       | 111/426 [00:01<00:02, 132.24it/s]Loading weights:  29%|██▉       | 125/426 [00:01<00:02, 128.52it/s]Loading weights:  33%|███▎      | 142/426 [00:01<00:02, 135.32it/s]Loading weights:  37%|███▋      | 156/426 [00:01<00:02, 125.47it/s]Loading weights:  40%|████      | 172/426 [00:01<00:01, 132.51it/s]Loading weights:  44%|████▎     | 186/426 [00:01<00:01, 134.16it/s]Loading weights:  47%|████▋     | 201/426 [00:01<00:01, 131.07it/s]Loading weights:  51%|█████▏    | 219/426 [00:01<00:01, 139.95it/s]Loading weights:  55%|█████▍    | 234/426 [00:01<00:01, 142.18it/s]Loading weights:  58%|█████▊    | 249/426 [00:02<00:01, 141.31it/s]Loading weights:  62%|██████▏   | 264/426 [00:02<00:01, 129.56it/s]Loading weights:  65%|██████▌   | 279/426 [00:02<00:01, 128.34it/s]Loading weights:  69%|██████▉   | 293/426 [00:02<00:01, 130.39it/s]Loading weights:  73%|███████▎  | 309/426 [00:02<00:00, 137.88it/s]Loading weights:  77%|███████▋  | 326/426 [00:02<00:00, 143.52it/s]Loading weights:  80%|████████  | 341/426 [00:02<00:00, 141.37it/s]Loading weights:  84%|████████▎ | 356/426 [00:02<00:00, 143.45it/s]Loading weights:  87%|████████▋ | 371/426 [00:02<00:00, 126.00it/s]Loading weights:  90%|█████████ | 385/426 [00:03<00:00, 129.40it/s]Loading weights:  95%|█████████▍| 403/426 [00:03<00:00, 137.93it/s]Loading weights:  98%|█████████▊| 418/426 [00:03<00:00, 131.92it/s]Loading weights: 100%|██████████| 426/426 [00:03<00:00, 126.48it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+using the split bound to the checkpoint: checkpoints/motor/split.json
+scoring 1824 held-out writers from checkpoints/motor/split.json
+  attempt 10: 0 valid, 0 malformed, 9 wrong-text
+  attempt 20: 1 valid, 0 malformed, 18 wrong-text
+  attempt 30: 1 valid, 0 malformed, 28 wrong-text
+  attempt 40: 1 valid, 0 malformed, 38 wrong-text
+  attempt 50: 1 valid, 0 malformed, 48 wrong-text
+  attempt 60: 1 valid, 0 malformed, 58 wrong-text
+  attempt 70: 1 valid, 0 malformed, 68 wrong-text
+  attempt 80: 1 valid, 0 malformed, 78 wrong-text
+  attempt 90: 1 valid, 0 malformed, 88 wrong-text
+  attempt 100: 1 valid, 0 malformed, 98 wrong-text
+  attempt 110: 1 valid, 0 malformed, 108 wrong-text
+  attempt 120: 1 valid, 0 malformed, 118 wrong-text
+  attempt 130: 1 valid, 0 malformed, 128 wrong-text
+  attempt 140: 1 valid, 0 malformed, 138 wrong-text
+  attempt 150: 1 valid, 0 malformed, 148 wrong-text
+  attempt 160: 1 valid, 0 malformed, 158 wrong-text
+  attempt 170: 1 valid, 0 malformed, 168 wrong-text
+  attempt 180: 2 valid, 0 malformed, 177 wrong-text
+  attempt 190: 2 valid, 0 malformed, 187 wrong-text
+  attempt 200: 2 valid, 0 malformed, 197 wrong-text

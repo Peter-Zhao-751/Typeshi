@@ -1,0 +1,15 @@
+aalto: 2000/20000 files
+aalto: 4000/20000 files
+aalto: 6000/20000 files
+aalto: 8000/20000 files
+aalto: 10000/20000 files
+aalto: 12000/20000 files
+aalto: 14000/20000 files
+aalto: 16000/20000 files
+aalto: 18000/20000 files
+aalto: 20000/20000 files
+aalto: dropped 228 sessions (unsupported chars/markers)
+aalto: 263352 examples
+wrote 236489 examples from 16081 writers to data/processed_par20k/train.jsonl
+wrote 26863 examples from 1824 writers to data/processed_par20k/test.jsonl
+wrote writer split to data/processed_par20k/split.json

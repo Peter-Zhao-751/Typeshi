@@ -1,0 +1,67 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 456.62it/s]
+Loading weights:   0%|          | 0/426 [00:00<?, ?it/s]Loading weights:   0%|          | 1/426 [00:00<01:35,  4.44it/s]Loading weights:   6%|▌         | 26/426 [00:00<00:04, 96.48it/s]Loading weights:  10%|▉         | 42/426 [00:00<00:03, 112.25it/s]Loading weights:  15%|█▌        | 65/426 [00:00<00:02, 149.98it/s]Loading weights:  20%|██        | 87/426 [00:00<00:02, 167.16it/s]Loading weights:  25%|██▍       | 106/426 [00:00<00:01, 167.81it/s]Loading weights:  31%|███       | 131/426 [00:00<00:01, 185.76it/s]Loading weights:  35%|███▌      | 151/426 [00:00<00:01, 184.24it/s]Loading weights:  40%|████      | 172/426 [00:01<00:01, 181.82it/s]Loading weights:  47%|████▋     | 199/426 [00:01<00:01, 198.32it/s]Loading weights:  52%|█████▏    | 220/426 [00:01<00:01, 198.97it/s]Loading weights:  57%|█████▋    | 241/426 [00:01<00:01, 181.88it/s]Loading weights:  61%|██████    | 260/426 [00:01<00:00, 172.38it/s]Loading weights:  66%|██████▌   | 281/426 [00:01<00:00, 181.56it/s]Loading weights:  71%|███████▏  | 304/426 [00:01<00:00, 185.60it/s]Loading weights:  76%|███████▌  | 323/426 [00:01<00:00, 185.26it/s]Loading weights:  80%|████████  | 342/426 [00:02<00:00, 184.72it/s]Loading weights:  85%|████████▍ | 361/426 [00:02<00:00, 176.49it/s]Loading weights:  90%|████████▉ | 382/426 [00:02<00:00, 183.09it/s]Loading weights:  94%|█████████▍| 401/426 [00:02<00:00, 173.68it/s]Loading weights:  98%|█████████▊| 419/426 [00:02<00:00, 163.59it/s]Loading weights: 100%|██████████| 426/426 [00:02<00:00, 168.96it/s]
+[transformers] The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+using the split bound to the checkpoint: checkpoints/motor/split.json
+scoring 1824 held-out writers from checkpoints/motor/split.json
+  attempt 10: 9 valid, 0 malformed, 0 wrong-text
+  attempt 20: 19 valid, 0 malformed, 0 wrong-text
+  attempt 30: 29 valid, 0 malformed, 0 wrong-text
+  attempt 40: 39 valid, 0 malformed, 0 wrong-text
+  attempt 50: 49 valid, 0 malformed, 0 wrong-text
+  attempt 60: 59 valid, 0 malformed, 0 wrong-text
+  attempt 70: 69 valid, 0 malformed, 0 wrong-text
+  attempt 80: 79 valid, 0 malformed, 0 wrong-text
+  attempt 90: 89 valid, 0 malformed, 0 wrong-text
+  attempt 100: 99 valid, 0 malformed, 0 wrong-text
+  attempt 110: 109 valid, 0 malformed, 0 wrong-text
+  attempt 120: 119 valid, 0 malformed, 0 wrong-text
+  attempt 130: 129 valid, 0 malformed, 0 wrong-text
+  attempt 140: 139 valid, 0 malformed, 0 wrong-text
+  attempt 150: 148 valid, 0 malformed, 1 wrong-text
+  attempt 160: 158 valid, 0 malformed, 1 wrong-text
+  attempt 170: 168 valid, 0 malformed, 1 wrong-text
+  attempt 180: 178 valid, 0 malformed, 1 wrong-text
+  attempt 190: 188 valid, 0 malformed, 1 wrong-text
+  attempt 200: 198 valid, 0 malformed, 1 wrong-text
+{
+  "sessions_scored": 200,
+  "generation_attempts": 201,
+  "generation_success_rate": 0.9950248756218906,
+  "generations_rejected_as_malformed": 0,
+  "generations_rejected_wrong_text": 1,
+  "sessions_skipped_not_held_out": 0,
+  "held_out_writers_only": true,
+  "temperature": 1.0,
+  "constrained_decoding": true,
+  "distributional": {
+    "iki": {
+      "kl": 0.07337723053241979,
+      "frechet": 0.00027404755873964225
+    },
+    "hold": {
+      "kl": 0.1298977130081861,
+      "frechet": 0.002280875161513774
+    },
+    "pause": {
+      "kl": 7.288086255801508,
+      "frechet": 0.002580633444603823
+    },
+    "burst": {
+      "kl": 0.09133534889648467,
+      "frechet": 0.0006746385018410553
+    }
+  },
+  "discriminator_accuracy_vs_model": 0.8225,
+  "discriminator_accuracy_vs_model_timing_only": 0.8375,
+  "discriminator_accuracy_vs_heuristic_baseline": 1.0,
+  "discriminator_accuracy_vs_shuffled_real": 0.7975,
+  "discriminator_accuracy_real_vs_real_control": 0.42000000000000004,
+  "pass_discriminator_has_teeth": true,
+  "pass_serial_dependence_teeth": true,
+  "pass_model": false,
+  "pass_generation_validity": true,
+  "pass_control_near_chance": true,
+  "tier1_met": false,
+  "note_below_chance": null
+}
