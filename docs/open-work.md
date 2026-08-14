@@ -134,6 +134,46 @@ and then continues is forced into repair within the window, and that the
 resulting stream's backspace run is short rather than the length of
 everything typed since the mistake.
 
+## Fix 1c 💻 — semantic revisions are forbidden, not absent
+
+Observed in interactive use: the model never writes something plain, thinks
+better of it, and replaces it with something better. It only ever makes and
+fixes typos.
+
+That is the mask, by construction. `excursion_budget` is **4 characters** —
+sized for a motor slip. A semantic revision means typing 10–50 characters
+of deliberately non-target text before replacing it, so the mask forces
+resolution at character five and the revision can never start. The model is
+not the limit: unconstrained it produces 24% backspaces, cursor ops and
+SELDELs (`docs/results-phase2-composition.md`).
+
+This is a gap in our implementation against our own design. Spec §6 asks
+for "typos **and semantic-revision excursions** (off-target wording)
+allowed up to a budget"; only the typo half was built, and the number 4 was
+chosen while fighting the oscillation bug, where a wide budget collapsed
+convergence to 1-in-5.
+
+Proposed fix — two budgets, not one bigger one:
+- **typo budget** (~4, unchanged): character-level slips, resolved by BKSP.
+- **revision budget** (~40–60): a coherent off-path span is allowed to
+  develop, and resolution is then required before EOS. Gate it on something
+  meaningful rather than letting it fire constantly — e.g. permit a
+  revision excursion only at a token boundary, and at a rate consistent
+  with the prompt's `<REV:>` knob, which is currently conditioning nothing
+  in composition (see Fix 4).
+- Resolution must be able to use SELDEL/cursor (Fix 1), so a rewrite is
+  select-and-replace, not a mass backspace (Fix 1b).
+
+Expect this to move the Tier-2 revision statistics that currently dominate
+the composition discriminator (`cursor_count` KL 7.10, `seldel_count`
+4.91, `bksp_frac` 4.11). Fixes 1, 1b and 1c are one thread: a mask tuned
+for transcription typos, applied to composition.
+
+Validation: the oscillation guard is what makes a wide budget safe, so keep
+`tests/test_converge.py`'s adversarial-sampler test as the gate, and re-run
+the convergence probe (50/50 exact before this change) to confirm the wider
+budget does not reintroduce the 1-in-5 collapse.
+
 ## Fix 2 🖥 — preference optimization, done properly this time
 
 RAFT round 1 is a measured null: 800 targets × 4 candidates, discriminator
