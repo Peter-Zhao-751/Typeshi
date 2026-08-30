@@ -327,10 +327,16 @@ def test_seldel_to_budget_forces_cursor_to_end_resolution():
     assert legal == {"1"}                     # exactly len(buffer)
     walk += [tok.vocab["1"], tok.vocab[">"], _tid(tok, "<DT:5>")]
     legal = _mask_tokens(proc, tok, walk)
-    assert legal and all(t.startswith("<BKSP:") for t in legal)
+    # Resolution stays compelled -- no free keys, no ending -- but it may now
+    # route through an op: one SELDEL undoes a long excursion where BKSP-only
+    # forces a deletion run as long as the excursion itself.
+    assert any(t.startswith("<BKSP:") for t in legal)
+    assert not any(t.startswith("<a:") or t.startswith("<z:") for t in legal)
+    assert "<EOS>" not in legal
     walk += [_tid(tok, "<BKSP:5>"), _tid(tok, "<DT:5>")]
     legal = _mask_tokens(proc, tok, walk)     # resolved -> cooldown: needed key
-    assert legal and all(t.startswith("<a:") for t in legal)
+    assert any(t.startswith("<a:") for t in legal)
+    assert not any(t.startswith("<z:") for t in legal)
 
 
 def test_cooldown_with_mid_buffer_cursor_forces_return_to_end():
@@ -355,7 +361,10 @@ def test_cooldown_with_mid_buffer_cursor_forces_return_to_end():
     assert legal == {"3"}
     walk += [tok.vocab["3"], tok.vocab[">"], _tid(tok, "<DT:5>")]
     legal = _mask_tokens(proc, tok, walk)
-    assert legal and all(t.startswith("<d:") for t in legal)
+    # Cooldown repayment offers the needed key and no other key; a caret move
+    # edits nothing and is hop-capped, so it no longer has to be excluded.
+    assert any(t.startswith("<d:") for t in legal)
+    assert not any(t.startswith("<z:") or t.startswith("<a:") for t in legal)
     walk += [_tid(tok, "<d:5>")]
     legal = _mask_tokens(proc, tok, walk)
     assert "<EOS>" in legal                   # buffer == target
@@ -455,3 +464,176 @@ def test_window_shift_preserves_holds_and_gaps():
     assert [e.press_time for e in shifted] == [1010, 1100]
     assert shifted[0].release_time - shifted[0].press_time == 50
     assert shifted[1].press_time - shifted[0].press_time == 90
+
+
+# --- Fix 1/1b/1c: on-path cursor ops, staleness, affordability ----------
+
+def _type(tok, s):
+    """Token walk that types `s`, one <c:5><DT:5> pair per character."""
+    from typeshi.serialize import _encode_char
+
+    walk = []
+    for ch in s:
+        walk += [_tid(tok, f"<{_encode_char(ch)}:5>"), _tid(tok, "<DT:5>")]
+    return walk
+
+
+def test_cursor_ops_are_offered_on_path_even_when_excursions_are_closed():
+    """Fix 1: a CUR op moves the caret and edits no text, so it cannot break
+    convergence and must not share the typo-excursion gate. With the gate
+    shut, a caret move is currently unrepresentable while typing on-path."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi there",
+                                excursion_budget=0)
+    walk = _type(tok, "hi")
+    legal = _mask_tokens(proc, tok, walk)
+    assert not any(t.startswith("<x:") for t in legal), "excursions shut"
+    assert "<" in legal, "on-path caret move must be reachable"
+
+
+def test_caret_hops_without_text_progress_are_capped():
+    """Fix 1, part 2: ungating CUR must not admit an endless caret walk.
+
+    Hops to the END, so the needed key stays legal throughout: the cap may
+    only close a caret move that is a luxury, never one that is the sole
+    legal progress (caret stranded at 0, where BKSP no-ops, is pinned by
+    _forced_cur instead and must stay reachable).
+    """
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hi there",
+                                excursion_budget=0, caret_hop_cap=2)
+    walk = _type(tok, "hi")
+    for _ in range(2):  # two no-op hops, no text change between them
+        walk += [tok.vocab[c] for c in "<CUR:2>"] + [_tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<" not in legal, "caret hops must be capped without progress"
+    assert any(t.startswith("<SPC:") for t in legal), \
+        "capping the caret must not strand the run"
+
+
+def test_stale_off_path_run_is_forced_into_repair():
+    """Fix 1b: edit-distance depth does not grow as you type past a typo, so
+    nothing forces a fix. Staleness -- events since the buffer was last a
+    clean prefix -- is what must force it, well before the end."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=50, staleness_window=4)
+    walk = _type(tok, "helo")            # typo at index 3, depth stays 1
+    walk += _type(tok, " world")          # keeps typing, never repairs
+    legal = _mask_tokens(proc, tok, walk)
+    assert not any(t.startswith("<z:") for t in legal), \
+        "a stale off-path run must stop offering free keys"
+    assert "<" in legal or any(t.startswith("<BKSP:") for t in legal), \
+        "repair moves must remain available"
+
+
+def test_long_excursion_is_allowed_while_the_budget_can_still_pay():
+    """Fix 1c: a semantic revision means 10-50 chars of off-target text. A
+    constant budget of 4 forbids it; affordability should permit it when the
+    remaining budget can still undo it and finish."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=4, token_budget=4000,
+                                staleness_window=10_000)
+    walk = _type(tok, "hello") + _type(tok, "XXXXXXXXXX")  # 10 off-path chars
+    legal = _mask_tokens(proc, tok, walk)
+    assert any(t.startswith("<z:") for t in legal), \
+        "an affordable excursion must stay open past the typo budget"
+
+
+def test_deliberate_excursion_outlives_the_staleness_window():
+    """Fix 1b vs 1c: staleness closes free keys after ~staleness_window
+    off-path events, but a semantic revision IS 10-50 off-path events, so at
+    the shipped default of 10 the behaviour Fix 1c permits can never occur.
+
+    The two cases staleness must separate are distinguishable by depth: typing
+    past a typo leaves depth ~1 while staleness grows; a deliberate excursion
+    grows depth with every character. Scaling the allowance with depth keeps
+    the typo case forced (the depth-1 test above) without guillotining the
+    revision at event eleven.
+    """
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=4, token_budget=4000)
+    walk = _type(tok, "hello") + _type(tok, "X" * 30)  # default staleness=10
+    legal = _mask_tokens(proc, tok, walk)
+    assert any(t.startswith("<z:") for t in legal), \
+        "an affordable deliberate excursion must survive the staleness window"
+
+
+def test_excursion_is_refused_when_the_budget_cannot_pay_to_finish():
+    """The other half: affordability must actually bind when it runs out.
+
+    excursion_budget=0 so the small typo allowance cannot open the excursion
+    on its own -- affordability is the only thing under test here.
+    """
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=0, token_budget=45,
+                                staleness_window=10_000)
+    walk = _type(tok, "hello")            # 10 tokens spent, 35 left
+    legal = _mask_tokens(proc, tok, walk)
+    assert not any(t.startswith("<z:") for t in legal), \
+        "off-path keys must close once the budget cannot pay to undo them"
+    assert any(t.startswith("<SPC:") for t in legal), "the needed key stays legal"
+
+
+def test_at_the_budget_floor_the_cheap_resolution_is_compelled():
+    """The guarantee rests on the CHEAPEST route the mask can COMPEL.
+
+    Authorising an excursion because CUR+SELDEL could undo it in 2 events,
+    then letting the model backspace 10 times instead, strands the run with
+    no budget and a wrong buffer. At the floor the mask must force the cheap
+    route rather than merely offer it.
+    """
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=50, token_budget=1000,
+                                staleness_window=10_000)
+    walk = _type(tok, "hello") + _type(tok, "XXXXXXXXXX")
+    proc._token_budget = len(walk) + 34   # just enough for CUR+SELDEL+finish
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<" in legal, "the cheap route must be offered at the floor"
+    assert not any(t.startswith("<BKSP:") for t in legal), \
+        "the expensive route must be closed once it is unaffordable"
+
+
+def test_at_the_floor_bksp_cannot_eat_the_correct_prefix():
+    """The compelled-route guarantee leaked AFTER the caret landed on the
+    divergence: _forced_cur stops pinning there, and the ordinary branch
+    offered BKSP alongside the ops, so an adversarial sampler at the floor
+    could backspace correct prefix characters until max_new_tokens. A floor
+    BKSP is legal only if the state it creates can still pay for compelled
+    resolution -- deleting a correct character never can."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=50, token_budget=10_000,
+                                staleness_window=10_000)
+    walk = _type(tok, "hello") + _type(tok, "XXXXXXXXXX")
+    walk += [tok.vocab[c] for c in "<CUR:5>"] + [_tid(tok, "<DT:5>")]
+    _mask_tokens(proc, tok, walk)  # replay to the caret-at-divergence state
+    proc._token_budget = (proc._generated
+                          + proc._finish_tokens(proc.buffer.text,
+                                                proc.buffer.cursor)
+                          + proc.MARGIN_TOKENS - 1)  # one short: the floor
+    legal = _mask_tokens(proc, tok, walk)
+    assert "<" in legal, "the cheap route must stay open"
+    assert not any(t.startswith("<BKSP:") for t in legal), \
+        "backspacing correct prefix at the floor breaks the budget claim"
+
+
+def test_needed_key_is_offered_mid_buffer_at_the_divergence():
+    """Repairing in place requires typing the right character where it is
+    missing. The mask only offered the needed key with the caret at the very
+    end, so a mid-buffer repair could never be completed -- which is why
+    deleting back to the mistake was the only route that worked."""
+    tok = OpTok()
+    proc = ConvergenceProcessor(tok, PROMPT_LEN, "hello world",
+                                excursion_budget=0)
+    # Type "hllo" -- 'e' missing at index 1 -- then park the caret at the gap.
+    walk = _type(tok, "hllo")
+    walk += [tok.vocab[c] for c in "<CUR:1>"] + [_tid(tok, "<DT:5>")]
+    legal = _mask_tokens(proc, tok, walk)
+    assert proc.buffer.cursor == 1
+    assert any(t.startswith("<e:") for t in legal), \
+        "the character that extends the correct prefix must be typeable here"

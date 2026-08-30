@@ -30,10 +30,36 @@ the LIVE buffer (0 <= pos <= len for CUR; 0 <= a < b <= len for SELDEL).
 The buffer applies the op the moment its '>' lands. Off-path depth
 generalizes to edit distance against the best target prefix (the stage-1
 suffix rule would count a whole shifted tail as off-path and ban exactly the
-mid-buffer revisions stage 2 exists to admit), and completed ops join the
-oscillation-guard discipline unchanged: ops open only while excursions are
-open, a SELDEL that lands the buffer back on-path arms the cooldown, and one
-that leaves depth at the budget forces resolution.
+mid-buffer revisions stage 2 exists to admit). A SELDEL that lands the buffer
+back on-path arms the cooldown; one that leaves the excursion unaffordable
+forces resolution.
+
+Stage 3 makes semantic revision representable. Three coupled changes:
+
+  - CUR is ungated on-path. A caret move edits no text, so it cannot break
+    convergence, and sharing the typo gate made every mid-buffer revision
+    unreachable while typing normally. SELDEL stays gated -- it deletes.
+  - The excursion budget becomes an AFFORDABILITY check rather than a
+    constant. An excursion of any length is permitted while the remaining
+    token budget can still pay to undo it and finish the target. A constant
+    is wrong at both ends: 4 forbids a 10-50 character semantic revision
+    outright, and a large one lets a wandering sampler burn the allowance.
+    SELDEL is what makes this practical -- undoing 50 characters costs one
+    caret move plus one delete, not 50 backspaces -- and the leash tightens
+    by itself as the budget depletes, so the model revises early and
+    polishes late.
+  - STALENESS forces prompt repair. Edit distance does not grow as you type
+    past a divergence, so a typo at character 3 still reads as depth 1 forty
+    characters later and nothing forces a fix until EOS is blocked at the
+    very end -- whereupon the only repair is a backspace run as long as
+    everything typed since. Events-since-on-path is what expresses "this has
+    been wrong for a while".
+
+The price quoted by the affordability check is the cheapest route the mask
+can COMPEL, never the cheapest the model might choose: authorising a long
+excursion because CUR+SELDEL could undo it in two events, then letting the
+model backspace fifty times instead, would strand the run with no budget and
+a wrong buffer. At the floor the mask therefore forces that route.
 
 Compromises in stage 2, each chosen over unsound cleverness:
   - One canonical spelling per op. BPE tokenization is context-dependent
@@ -52,18 +78,36 @@ Compromises in stage 2, each chosen over unsound cleverness:
     restriction costs generality, never soundness.
 
 Termination: resolution is BKSP while the cursor is off 0 (length strictly
-shrinks; the empty buffer is on-path) and cursor-to-end when it is at 0, so
-depth 0 is always reached; once on-path the cooldown rule steers the cursor
-to the end, where the next-needed key is always sampleable. buffer == target
-therefore stays reachable from every state; max_new_tokens bounds the walk,
-and a generation that never converges is a FAILED attempt for the caller to
-count, never a silently wrong text.
+shrinks; the empty buffer is on-path), SELDEL (which also strictly shrinks),
+and cursor-to-end when the caret is at 0, so depth 0 is always reached; once
+on-path the cooldown rule steers the cursor to the end, where the
+next-needed key is always sampleable. Caret moves edit nothing and so cannot
+pay down staleness or the budget; the hop cap bounds any caret-only walk,
+which is what keeps an ungated CUR from replacing the old max_new_tokens
+argument with an infinite loop. buffer == target therefore stays reachable
+from every state; max_new_tokens bounds the walk, and a generation that
+never converges is a FAILED attempt for the caller to count, never a
+silently wrong text.
 """
 
 from __future__ import annotations
 
 from typeshi.buffer import TextBuffer
 from typeshi.serialize import _encode_char, special_tokens
+
+
+def _common_prefix_len(a: str, b: str) -> int:
+    """Index where the two strings first differ.
+
+    The divergence point, which is where a caret must land for one SELDEL to
+    excise everything wrong -- distinct from _prefix_edit_depth, which says
+    how MANY edits separate the buffer from any prefix, not WHERE.
+    """
+    n = min(len(a), len(b))
+    for i in range(n):
+        if a[i] != b[i]:
+            return i
+    return n
 
 
 def _prefix_edit_depth(text: str, target: str) -> int:
@@ -170,7 +214,10 @@ class ConvergenceProcessor:
 
     def __init__(self, tok, prompt_len: int, target: str,
                  excursion_budget: int = 4, resolve_progress: int = 2,
-                 written_so_far: str = "", cursor: int | None = None) -> None:
+                 written_so_far: str = "", cursor: int | None = None,
+                 token_budget: int | None = None,
+                 staleness_window: int = 10,
+                 caret_hop_cap: int = 3) -> None:
         """`written_so_far`/`cursor` seed the buffer for a CONTINUATION
         window (windowed generation, matching how composition was trained:
         512-event windows with a <WRITTEN> tail). A continuation starts in
@@ -196,6 +243,17 @@ class ConvergenceProcessor:
         self.resolve_progress = resolve_progress
         self._resolving = False
         self._cooldown = 0
+        # Affordability (spec: excursions of any length, provided the budget
+        # can still pay to undo them and finish) plus the two bounds that make
+        # a wide budget safe: staleness forces a stale divergence to be
+        # repaired promptly, and the hop cap stops a caret-only walk.
+        self._token_budget = token_budget
+        self.staleness_window = staleness_window
+        self.caret_hop_cap = caret_hop_cap
+        self._stale = 0      # events emitted since the buffer was on-path
+        self._hops = 0       # caret moves since the correct prefix last grew
+        self._prefix = 0     # high-water mark of the correct prefix
+        self._generated = 0  # tokens emitted so far, for the budget check
         self.buffer = TextBuffer(written_so_far, cursor)
         self._consumed = 0  # generated tokens already applied to the buffer
         self._slot = "gap" if written_so_far else "event"
@@ -223,6 +281,12 @@ class ConvergenceProcessor:
         self._dev: dict[str, object] = {}
 
         self._ops = self._build_op_tables(tok)
+        self._op_len: dict[str, int] = {}
+        if self._ops is not None:
+            self._op_len = {
+                "cur": len(tok.encode("<CUR:", add_special_tokens=False)),
+                "seldel": len(tok.encode("<SELDEL:", add_special_tokens=False)),
+            }
         if self._ops is not None:
             root = self._ops["root"]["children"]
             self._op_root_all = torch.tensor(list(root))
@@ -282,25 +346,169 @@ class ConvergenceProcessor:
             self._depth_val = _prefix_edit_depth(text, self.target)
         return self._depth_val
 
-    def _forced_cur(self) -> bool:
-        """States whose only sound move is cursor-to-end (<CUR:len>).
+    # -- cost model -------------------------------------------------------
+    #
+    # The affordability rule is only as sound as the price it quotes. It must
+    # be the cost of the cheapest route the mask can COMPEL, never the
+    # cheapest route the model might choose: authorising a 50-character
+    # excursion because CUR+SELDEL could undo it in two events, and then
+    # letting the model backspace fifty times instead, strands the run with
+    # no budget and a wrong buffer. Everything below is measured in TOKENS,
+    # because that is what max_new_tokens actually bounds -- an event is two
+    # tokens (the event and its gap), but an op costs a digit per decimal
+    # place and so grows with buffer position.
 
-        Resolving with the cursor at 0: BKSP would no-op forever. Cooldown
-        repayment with the cursor mid-buffer: the needed key extends the
-        text only at its end. Both are unreachable without cursor ops, so
-        stage-1 tokenizers never see this branch.
+    MARGIN_TOKENS = 8
+
+    # Extra staleness allowance per character of depth (see _stale_forced).
+    STALE_DEPTH_SLACK = 2
+
+    @staticmethod
+    def _digits(n: int) -> int:
+        return len(str(n))
+
+    def _cur_tokens(self, pos: int) -> int:
+        return self._op_len["cur"] + self._digits(pos) + 2  # '>' and the gap
+
+    def _seldel_tokens(self, a: int, b: int) -> int:
+        return (self._op_len["seldel"] + self._digits(a) + 1
+                + self._digits(b) + 2)  # '-', '>' and the gap
+
+    def _finish_tokens(self, text: str, cursor: int) -> float:
+        """Tokens to reach `text == target` by the cheapest compellable route."""
+        if text == self.target:
+            return 1  # just the EOS
+        p = _common_prefix_len(text, self.target)
+        cost = 0
+        if len(text) > p:
+            if self._ops is not None:
+                if cursor != p:
+                    cost += self._cur_tokens(p)
+                cost += self._seldel_tokens(p, len(text))
+            elif cursor == len(text):
+                cost += 2 * (len(text) - p)  # stage 1: backspace the tail
+            else:
+                return float("inf")  # no way to move the caret, no way back
+        elif cursor != len(text):
+            if self._ops is None:
+                return float("inf")
+            cost += self._cur_tokens(len(text))
+        return cost + 2 * (len(self.target) - p) + 1
+
+    def _remaining(self) -> float:
+        if self._token_budget is None:
+            return float("inf")
+        return self._token_budget - self._generated
+
+    def _affordable(self, text: str, cursor: int) -> bool:
+        # No budget declared means affordability is not in play and the
+        # constant typo budget rules alone -- returning True here instead
+        # would silently disable the excursion guard for every caller that
+        # does not pass one.
+        if self._token_budget is None:
+            return False
+        return (self._finish_tokens(text, cursor) + self.MARGIN_TOKENS
+                <= self._remaining())
+
+    def _excursion_exhausted(self) -> bool:
+        """Depth alone no longer forces resolution -- affordability can
+        keep a long, deliberate revision open past the typo budget."""
+        return (self._depth() >= self.budget
+                and not self._affordable(self.buffer.text, self.buffer.cursor))
+
+    def _at_floor(self) -> bool:
+        """True once only the compelled resolution route still fits."""
+        if self._token_budget is None:
+            return False
+        return not self._affordable(self.buffer.text, self.buffer.cursor)
+
+    def _excursions_open(self) -> bool:
+        """Whether an off-path key is permitted at this position.
+
+        Factored out because _forced_cur has to know it too: a caret move is
+        only the LAST legal resort when no key is available, and pinning it
+        when keys are open would forbid ordinary typing.
+        """
+        if self._at_floor():
+            return False
+        text, cursor = self.buffer.text, self.buffer.cursor
+        affordable = self._affordable(
+            text[:cursor] + "\0" + text[cursor:], cursor + 1
+        )
+        return ((self._depth() < self.budget or affordable)
+                and not self._resolving
+                and self._cooldown == 0
+                and not self._stale_forced())
+
+    def _stale_forced(self) -> bool:
+        """Off-path for longer than a writer would leave it unnoticed.
+
+        Edit-distance depth does not grow as you type past a divergence, so
+        it cannot express "this has been wrong for a while". Without this the
+        error is only forced at the very end, and the repair is a backspace
+        run the length of everything typed since -- the observed
+        types-the-line-then-deletes-it-all behaviour.
+
+        The allowance scales with depth, because depth is what separates the
+        two kinds of off-path stretch: typing past a typo leaves depth ~1
+        while staleness grows, and must be forced promptly; a deliberate
+        revision excursion grows depth with roughly every event, and a flat
+        window the size of a typo guillotines it at event eleven -- Fix 1c's
+        excursions could never actually start. The slack factor tolerates a
+        draft-like excursion whose text half-matches the target (depth
+        growing at half the event rate); anything staler than that is a
+        divergence being typed past, not a revision. It cannot be 3: the
+        typo case (depth 1) must still force within staleness_window + 3.
+        """
+        allowance = self.staleness_window + self.STALE_DEPTH_SLACK * self._depth()
+        return self._depth() > 0 and self._stale > allowance
+
+    def _forced_cur(self) -> int | None:
+        """The pinned caret position when only a cursor move is sound.
+
+        Returns the position <CUR:> must carry, or None. Three sources:
+        resolving with the caret at 0 (BKSP would no-op forever), cooldown
+        repayment with the caret mid-buffer (the needed key only extends the
+        end), and the budget floor, where the caret must go to the divergence
+        point so the tail can be removed in one SELDEL instead of N
+        backspaces.
         """
         if self._ops is None:
-            return False
+            return None
         cursor, n = self.buffer.cursor, len(self.buffer.text)
         depth = self._depth()
-        return (self._resolving and depth > 0 and cursor == 0) or (
-            self._cooldown > 0 and depth == 0 and cursor < n
-        )
+        if self._resolving and depth > 0 and cursor == 0:
+            return n
+        if self._cooldown > 0 and depth == 0 and cursor < n:
+            return n
+        p = _common_prefix_len(self.buffer.text, self.target)
+        if self._at_floor():
+            if n > p and cursor != p:
+                return p
+            if n == p and cursor != n:
+                return n
+        # NOT DONE: pinning the caret to just past the divergence so one
+        # backspace removes exactly the wrong character. Tried and reverted --
+        # with the divergence at index 0 it pins to 1, and BKSP there deletes
+        # the FRONT of the buffer, shifting everything so the divergence stays
+        # at 0. Measured on motor-phase2: 281 cursor ops, 1015 events, on-path
+        # 0/140, stalled -- delete-from-the-back turned into
+        # delete-from-the-front. Routing repair to the cheap edit needs to know
+        # the KIND of divergence (a wrong character to delete vs a missing one
+        # to insert); the common-prefix index alone cannot tell them apart.
+        # Caret at 0 with text and nothing else legal: BKSP no-ops there and no
+        # key is offered off the divergence, so a caret move is the only
+        # progress -- and it must be PINNED, or a sampler can hop 0 -> 0 for
+        # ever. Pinning it to the divergence is where the needed key becomes
+        # legal.
+        if (self.buffer.text and cursor == 0 and p != 0
+                and not self._excursions_open()):
+            return p
+        return None
 
-    def _feasible_kinds(self, forced: bool) -> set[str]:
+    def _feasible_kinds(self, forced: int | None) -> set[str]:
         # SELDEL needs a nonempty range to delete; CUR:0 is always valid.
-        if forced:
+        if forced is not None:
             return {"cur"}
         kinds = {"cur"}
         if self.buffer.text:
@@ -310,12 +518,13 @@ class ConvergenceProcessor:
     def _op_bounds(self, op: dict) -> tuple[int, int]:
         n = len(self.buffer.text)  # static for the whole op
         if op["kind"] == "cur":
-            return (n, n) if op["forced"] else (0, n)
+            f = op["forced"]
+            return (f, f) if f is not None else (0, n)
         if op["phase"] == "a":
             return 0, n - 1  # a < b <= n needs a <= n-1
         return op["a"] + 1, n
 
-    def _start_op(self, node: dict, forced: bool) -> None:
+    def _start_op(self, node: dict, forced: int | None) -> None:
         if node["leaf"]:
             self._op = {"kind": node["leaf"], "phase": "a", "digits": "",
                         "a": None, "forced": forced}
@@ -352,15 +561,35 @@ class ConvergenceProcessor:
         """
         if op["kind"] == "cur":
             self.buffer._move(int(op["digits"]))
+            # A caret move edits nothing, so it cannot pay down staleness and
+            # cannot be allowed to repeat forever; only text changes reset it.
+            self._hops += 1
         else:
             self.buffer._seldel(op["a"], int(op["digits"]))
             if self._depth() == 0:
                 self._resolving = False
                 self._cooldown = self.resolve_progress
-            elif self._depth() >= self.budget:
+            elif self._excursion_exhausted():
                 self._resolving = True
         self._op = None
         self._slot = "gap"
+        self._tick()
+
+    def _tick(self) -> None:
+        """One emitted event: staleness and the hop cap both reckon from
+        PROGRESS, not from activity.
+
+        Resetting the hop cap on any edit let a caret/backspace pair reset it
+        every other event, so CUR-to-1 + BKSP could delete the buffer from the
+        front for ever -- measured: 281 cursor ops, 1015 events, on-path 0/140,
+        stalled. Neither of those events grows the correct prefix, so neither
+        may clear the guard.
+        """
+        self._stale = 0 if self._depth() == 0 else self._stale + 1
+        grown = _common_prefix_len(self.buffer.text, self.target)
+        if grown > self._prefix:
+            self._prefix = grown
+            self._hops = 0
 
     def _apply_new_tokens(self, ids: list[int]) -> None:
         """Replays committed tokens and advances the guard state.
@@ -384,9 +613,10 @@ class ConvergenceProcessor:
                 self.buffer._insert(self._id_char[i])
                 if self._depth() == 0 and self._cooldown > 0:
                     self._cooldown -= 1
-                elif self._depth() >= self.budget:
+                elif self._excursion_exhausted():
                     self._resolving = True
                 self._slot = "gap"
+                self._tick()
             elif kind == "bksp":
                 deleted = self.buffer.cursor > 0
                 self.buffer._backspace()
@@ -394,6 +624,7 @@ class ConvergenceProcessor:
                     self._resolving = False
                     self._cooldown = self.resolve_progress
                 self._slot = "gap"
+                self._tick()
             elif kind == "dt":
                 self._slot = "event"
             elif self._ops is not None and i in self._ops["root"]["children"]:
@@ -406,6 +637,7 @@ class ConvergenceProcessor:
 
         generated = input_ids.shape[1] - self.prompt_len
         new = input_ids[0, self.prompt_len + self._consumed:].tolist()
+        self._generated = generated
         self._apply_new_tokens(new)
         self._consumed = generated
 
@@ -444,20 +676,31 @@ class ConvergenceProcessor:
             n = len(text)
             depth = self._depth()
 
-            if self._forced_cur():
+            if self._forced_cur() is not None:
                 allowed = [self._to("op_cur", self._op_root_cur, device)]
             else:
                 allowed = []
-                if depth == 0 and cursor == n and n < len(self.target):
-                    needed = self.target[n]
+                # The needed key is whatever extends the correct prefix, and
+                # that is typeable wherever the caret sits ON the divergence --
+                # not only at the end of the buffer. Requiring cursor == n made
+                # mid-buffer repair impossible to COMPLETE, which is why
+                # deleting back to the mistake was the only route that worked;
+                # on-path-at-the-end is just the special case where the
+                # divergence IS the end.
+                div = _common_prefix_len(text, self.target)
+                if cursor == div and div < len(self.target):
+                    needed = self.target[div]
                     allowed.append(
                         self._to(f"c:{needed}", self._per_char[needed], device)
                     )
-                excursions_open = (
-                    depth < self.budget
-                    and not self._resolving
-                    and self._cooldown == 0
-                )
+                floor = self._at_floor()
+                # An excursion is permitted either because it is a
+                # character-level slip inside the small typo budget, or
+                # because the remaining budget can still pay to undo it and
+                # finish -- the affordability rule. The second is what makes a
+                # semantic revision (10-50 characters of off-target wording)
+                # representable at all; a constant of 4 forbids it outright.
+                excursions_open = self._excursions_open()
                 if excursions_open:
                     allowed.append(self._to("keys", self._all_keys, device))
                     if self._ops is not None:
@@ -466,19 +709,64 @@ class ConvergenceProcessor:
                         allowed.append(
                             self._to(f"op_root:{bool(text)}", roots, device)
                         )
+                elif (self._ops is not None and text and depth > 0
+                      and self._hops < self.caret_hop_cap):
+                    # Repair route, off-path. Reaching the divergence point
+                    # with the caret is what lets one SELDEL undo a long
+                    # excursion; without it the only repair is a backspace run
+                    # as long as everything typed since the mistake -- the
+                    # types-the-line-then-deletes-it-all behaviour.
+                    allowed.append(
+                        self._to("op_root_all", self._op_root_all, device)
+                    )
+                # A caret move edits no text, so it cannot break convergence
+                # and must not share the typo gate: on-path it is the start of
+                # every mid-buffer revision, and gating it there is what made
+                # semantic revision unrepresentable. SELDEL stays gated -- it
+                # deletes text, so it belongs with excursions. The hop cap is
+                # what keeps a caret-only sampler terminating.
+                if (self._ops is not None and depth == 0 and text
+                        and not floor and not excursions_open
+                        and self._hops < self.caret_hop_cap):
+                    allowed.append(
+                        self._to("op_cur", self._op_root_cur, device)
+                    )
                 if text and cursor > 0 and not (self._cooldown > 0 and depth == 0):
                     # No BKSP while repaying progress on-path: deleting
                     # correct text there would reopen the oscillation loop.
-                    allowed.append(self._to("bksp", self._bksp, device))
+                    # At the floor with ops available, a BKSP is offered only
+                    # if the state it creates can still pay for compelled
+                    # resolution (the press costs 2 tokens): a genuine
+                    # slip-fix passes, deleting correct prefix never does --
+                    # without this, once the caret lands ON the divergence
+                    # _forced_cur stops pinning and an adversarial sampler
+                    # could backspace correct text until max_new_tokens.
+                    bksp_ok = True
+                    if floor and self._ops is not None:
+                        after = text[: cursor - 1] + text[cursor:]
+                        bksp_ok = (self._finish_tokens(after, cursor - 1)
+                                   + self.MARGIN_TOKENS + 2
+                                   <= self._remaining())
+                    if bksp_ok:
+                        allowed.append(self._to("bksp", self._bksp, device))
                 if not allowed:
-                    # Corner states must still offer something legal: type
-                    # the next needed char if the target is unfinished, else
-                    # undo one char (retype cycle) -- never an off-path
-                    # extension.
-                    if n < len(self.target):
-                        needed = self.target[n]
+                    # Corner states must still offer something legal -- and it
+                    # must make progress toward the target, never an off-path
+                    # extension. Keyed on the divergence rather than on n: with
+                    # mid-buffer carets now reachable, target[n] at a caret
+                    # that is not the end would insert an unrelated character.
+                    if cursor == div and div < len(self.target):
+                        needed = self.target[div]
                         allowed.append(
                             self._to(f"c:{needed}", self._per_char[needed], device)
+                        )
+                    elif text and cursor > 0:
+                        allowed.append(self._to("bksp", self._bksp, device))
+                    elif self._ops is not None and text:
+                        # Caret pinned at 0 with text present: BKSP no-ops, so
+                        # the only progress is moving it.
+                        allowed.append(
+                            self._to("op_cur", self._op_root_cur, device)
                         )
                     else:
                         allowed.append(self._to("bksp", self._bksp, device))

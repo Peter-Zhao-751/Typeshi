@@ -135,12 +135,24 @@ def test_discover_includes_adapter_dirs_and_midrun_saves(tmp_path):
 
 # -- request validation --------------------------------------------------
 
-def test_validate_target_rejects_unsupported_characters():
+def test_validate_target_normalizes_word_processor_homoglyphs():
+    """Curly quotes and em dashes are what every pasted paragraph contains;
+    rejecting them made the portal refuse ordinary prose. They have exact
+    ASCII identities, so they are normalized rather than bounced."""
+    from typeshi.portal.server import validate_target
+
+    assert validate_target("smart “quotes”—here", 300) == 'smart "quotes"-here'
+
+
+def test_validate_target_rejects_genuinely_untypable_characters():
+    """Normalization covers homoglyphs only. A character with no ASCII
+    identity is still a hard 400 -- silently dropping it would generate a
+    session that types different text than the user asked for."""
     from typeshi.portal.server import PortalError, validate_target
 
     with pytest.raises(PortalError) as exc:
-        validate_target("smart “quotes”", 300)
-    assert "“" in str(exc.value)
+        validate_target("emoji 😀 here", 300)
+    assert "😀" in str(exc.value)
 
 
 def test_validate_target_rejects_prompt_markers():
@@ -412,3 +424,14 @@ def test_resolve_split_prefers_the_checkpoints_own(tmp_path):
     assert resolve_split(ckpt, fallback) == ckpt / "split.json"
     assert resolve_split(tmp_path / "bare", fallback) == fallback
     assert resolve_split(None, tmp_path / "absent.json") is None
+
+
+def test_session_payload_replays_on_top_of_a_draft():
+    """With a draft seeded, the events are edits ON it. Replaying from empty
+    would report the wrong produced text and call a converged run a failure."""
+    from typeshi.portal.rows import session_payload
+
+    events = [Event.backspace(0, 10), Event.key("i", 20, 30)]
+    payload = session_payload(events, "hi", start_text="ho")
+    assert payload["produced"] == "hi"
+    assert payload["exact"] is True

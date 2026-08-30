@@ -13,6 +13,152 @@ needs the GPU for the work itself. The efficient pattern is therefore:
 do all the local work first, then rent a box once and run every pending
 measurement in a single session.
 
+## 2026-08-25: the laptop batch — everything short of the GPU is done
+
+One sitting, TDD throughout, suite 364 green (was 334). What landed:
+
+- **Fix 1b vs 1c interaction** (2026-08-24, below) — staleness now scales
+  with depth, so deliberate excursions survive at shipped defaults.
+- **Run-scoped affordability.** `generate_windowed` prices excursions
+  against the RUN's remaining tokens (`max_windows × window allowance −
+  spent`), not one window's slice — the budget-starvation note below is
+  addressed. Sound because state replays across boundaries (a cut excursion
+  resumes, never strands) and every spent token, trimmed tails included,
+  counts against the same pool.
+- **Per-window labels at generation.** Training labels describe their own
+  window (`window_labels`); generation now accepts a label sequence and
+  `run_eval_composition` passes the real paired session's
+  `window_label_schedule`. Until this, the model was taught "`<REV:>` means
+  this window" and then prompted with a session average every window — the
+  phase-3 retrain would have undersold itself.
+- **Stall verdict knows revision.** A window of cursor/seldel ops with no
+  prefix growth is no longer branded STALLED.
+- **Floor compulsion is now tight.** At the floor a BKSP is offered only if
+  the state it creates can still pay for compelled resolution — the
+  post-caret-landing leak (BKSP through correct prefix) is closed, and the
+  "cheapest compellable route" claim is literally true outside the corner
+  fallbacks.
+- **`repair_horizon` deleted.** It was stored and plumbed to the portal but
+  never read — a silent no-op knob.
+- **`gen_raft_data` REV inversion fixed** (`rv/100` → `rev_from_bin`): on
+  the geometric scale the byte-equality gate was silently skipping every
+  stored prompt with REV>0. `--oversample-min-bin` default is now 17 (the
+  old 5 is ~0.22% on the geometric scale and would duplicate the majority).
+- **Symbols.** `serialize.normalize_typable` maps word-processor homoglyphs
+  (curly quotes, dash family, ellipsis, exotic spaces, CRLF) onto supported
+  identities; the portal normalizes instead of bouncing, and genuinely
+  untypable characters still 400. Vocabulary extension deliberately NOT
+  done — normalization covers the observed failures without a token-format
+  change.
+- **IteraTeR adapter built and run** (`adapters/iterater.py` +
+  `adapters/timing.py`). Doc chains and sentence mini-sessions synthesize
+  to CURSOR/SELDEL/KEY events with timing drawn from real KLiCKe pools
+  (hold/gap pairs conditioned on the eval's three pause classes, think
+  pauses off real pre-op gaps). 303/559 docs failed byte-exact verification
+  on first run — median residue ONE character of whitespace the actions
+  don't span — and are reconciled with small cleanup edits (cap 32 chars;
+  2 docs genuinely inconsistent, dropped). Yield: **4,533 sessions /
+  1.83M events, 238 sessions ≥ REV bin 17** — more distinct high-revision
+  material than the 218 KLiCKe windows, before windowing multiplies it.
+  Exported to `data/processed_iterater/` (6,127 examples, label accuracy
+  100%, 28/31 bins) as a shard to concatenate for phase-4.
+- **`data/processed_v3` re-export** run locally per the runbook (CPU only).
+
+**`docs/revision-fix-runbook.md` holds the updated GPU sequence** — now two
+trainings (phase-3 = label fix alone, phase-4 = + IteraTeR) in one rental so
+attribution stays clean. Not done, deliberately: DPO/RAFT batched generation
+(decide after phase-4 numbers), vocabulary extension (above), and a portal
+label-schedule sampler (the portal still sends session-constant labels;
+the eval path is the one that matters and it is wired).
+
+## Fix 4 has a cause, and it is a data bug (2026-08-14, laptop)
+
+Composition knob fidelity is weak because **the conditioning labels describe
+the session while the completion is one window**. `build_examples` passed the
+session's `SessionLabels` to every window it cut. Measured over the 24,909
+exported composition windows, the `<REV:>` bin matched its own window only
+**52.9%** of the time — 39.9% of `<REV:0>` windows contain cursor ops, 24.0%
+of `<REV:n>` windows contain none.
+
+The control was already in the report and reads the other way round from the
+"broken mechanism" hypothesis: transcription WPM fidelity is r=0.994 because
+Aalto sentences are ~50 events and **never window**, so their labels were
+always correct. Composition windows heavily and sits at r=0.43. Same code,
+opposite outcomes, explained entirely by whether windowing happened.
+
+Fixed and tested locally (334 green): `labels.window_labels()` recomputes
+speed/correction/revision per window and inherits only
+`uncorrected_error_rate` (a whole-session quantity — a window that typed half
+the text has not erred by stopping). `dataset.revision_repeats()` plus
+`build_dataset.py --oversample-revisions` rebalances the 0.9% of windows at
+`REV>=5`, train split only. On a 400-file KLiCKe slice: label accuracy
+52.9% → **100%**, `REV>=5` share 0.9% → 35.5% at factor 20.
+
+This needs a re-export and a retrain to show up. **`docs/revision-fix-runbook.md`
+is the sequence, with the numbers to check at each step.** Note it reprices
+WPM for any single-window session containing backspaces, so Tier-1 has to be
+re-run as a regression check, not a formality.
+
+## Status: Fixes 1, 1b and 1c are implemented (2026-08-14, laptop)
+
+All three landed together in `src/typeshi/converge.py` — they are one
+mechanism and none of them is sound alone. `tests/test_converge.py` gained
+six cases (on-path CUR, hop cap, staleness forcing, affordable long
+excursion, refused unaffordable excursion, compelled cheap resolution);
+suite is 325 green.
+
+Two contract changes worth knowing before reading the old tests: resolution
+may now route through CUR+SELDEL rather than BKSP-only, and `_forced_cur`
+returns a pinned position (`int | None`) instead of a bool, because the
+budget floor pins the caret to the *divergence point* rather than the end.
+
+One addition to the design as written. The affordability price must be the
+cheapest route the mask can **compel**, not the cheapest the model might
+choose: authorising a 50-character excursion because CUR+SELDEL could undo it
+in two events, then letting the model backspace 50 times instead, strands the
+run with no budget and a wrong buffer. At the floor the mask now forces that
+route (`_forced_cur` → divergence point, then SELDEL, with BKSP masked out
+whenever ops are available).
+
+Measured on `motor-phase2`, composition, 8 runs across two lengths and two
+`<REV:>` settings:
+
+| | before | after |
+|---|---|---|
+| convergence | 8/8 exact | **8/8 exact** |
+| longest backspace run | 136–141 | **11** |
+| backspace rate | 30–36% | 2–18% |
+| cursor ops at 197 chars, REV=15 | 0 | 3 CUR + 2 SELDEL |
+
+The delete-everything-and-retype behaviour is gone and revisions are
+representable. What remains is the predicted limitation: overall revision
+rate is 0.43% of events against real writers' 1.1–1.3%, and `<REV:>` still
+moves it only weakly. That is now a **training-data** problem, not a mask
+problem — a corpus scan of 24,909 composition rows shows `<REV:>` is cleanly
+learnable (bin 1 → 0.86% ops, bin 5 → 5.14%, bin 10 → 10.04%) but 87% of
+rows sit at REV ≤ 1 and only 0.9% at REV ≥ 5. The model has barely seen the
+behaviour being asked for, which is exactly the IteraTeR gap.
+
+Also worth a knob: at `window_events=512` the per-window allowance is 1088
+tokens, and a 348-character target needs ~700 of them just to type, leaving
+little headroom for an affordable excursion. Long-text revision is
+budget-starved by the window size, not by the rule.
+
+**One interaction fixed later (2026-08-24, laptop): at the shipped defaults,
+1b defeated 1c.** Staleness closed free off-path keys after ~11 events, and a
+semantic revision *is* 10–50 off-path events — every test demonstrating 1c
+had to pass `staleness_window=10_000` to run at all. The two cases staleness
+must separate are distinguishable by depth: typing past a typo leaves depth
+~1 while staleness grows, while a deliberate excursion grows depth with
+roughly every event. `_stale_forced` now allows
+`staleness_window + 2*depth` events off-path (`STALE_DEPTH_SLACK`, a class
+constant beside `MARGIN_TOKENS`; it cannot be 3 or the depth-1 typo test
+stops forcing). Measured: the typo-passed-by run still closes at 12 events
+(was ~11), a 1-in-3-errors walk closes at 33 — bounded, proportional to
+error mass — a deliberate affordable excursion stays open with affordability
+as its only bound, and with `token_budget=None` the constant depth budget
+still binds at 4. Suite 341 green, adversarial-sampler gate included.
+
 ## Where the project stands
 
 | Model | What it is | Verdict |
@@ -322,9 +468,10 @@ in `docs/token-format.md`'s style — measurement first, number second.
   Its per-keystroke finger labels are ground truth for the
   keyboard-reconstruction workstream's same-finger rule — that validation
   is available now, locally.
-- **IteraTeR** ✅ downloaded (human subset), `docs/iterater-notes.md` maps
-  its edit offsets onto CURSOR/SELDEL/KEY events for grounding the spec
-  §4.1.3 synthetic revision trajectories. No adapter yet 💻.
+- **IteraTeR** ✅ downloaded (human subset; re-fetched 2026-08-25 — the
+  laptop copy had gone missing), **adapter built and exported**
+  (`adapters/iterater.py`, `data/processed_iterater/`; see the 2026-08-25
+  section above). `docs/iterater-notes.md` is the field guide.
 - **Clarkson II, Buffalo CUBS** ⏳ request-only; ready-to-send drafts are in
   `docs/dataset-requests.md`. These need a human to send them.
 - **Aalto Mobile 37k** — deliberately skipped (v1 non-goal).

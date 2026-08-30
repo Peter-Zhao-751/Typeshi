@@ -26,6 +26,7 @@ from typeshi.eval.discriminator import (
 )
 from typeshi.eval.distributional import compare_sessions
 from typeshi.eval.knobs import knob_fidelity, realized_labels
+from typeshi.dataset import window_label_schedule
 from typeshi.eval.signatures import compare_signatures
 from typeshi.generate import generate_windowed
 from typeshi.labels import compute_labels
@@ -91,8 +92,14 @@ def main() -> None:
             try:
                 # Windowed: matches the 512-event training windows -- the
                 # single-shot path measured 76% convergence on long essays.
+                # Conditioned on the REAL session's per-window schedule, not
+                # its session average: training labels describe their own
+                # window (window_labels), so a constant average is a prompt
+                # the model was taught means something else. `labels` stays
+                # the requested/reported aggregate for knob fidelity.
                 gen = generate_windowed(
-                    model, tok, target, labels,
+                    model, tok, target,
+                    window_label_schedule(events, labels),
                     temperature=args.temperature, seed=attempts,
                 )
             except ValueError as exc:

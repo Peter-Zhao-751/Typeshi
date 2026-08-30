@@ -1012,8 +1012,9 @@
           </div>
 
           <div class="range-control" id="revControl">
-            <label for="rev">Revision rate <span class="value"><span id="revValue">0</span>%<span class="bin-tag" id="revBin">bin —</span></span></label>
+            <label for="rev">Revision rate <span class="value"><span id="revValue">0</span><span class="bin-tag" id="revBin">bin —</span></span></label>
             <input id="rev" type="range" min="0" max="30" step="1" value="0">
+            <p class="hint">Cursor moves and selection-deletes as a share of events. Geometric bins, not percents: real writers sit around 1.1&ndash;1.3% and the median corpus window at 0.39%, so a whole-percent scale put almost everything in bin 0. The slider picks the bin and shows the rate it means.</p>
           </div>
 
           <div class="range-control">
@@ -1038,10 +1039,22 @@
           </label>
 
           <div class="subgroup" id="convergenceGroup" hidden>
+            <div>
+              <label class="field-label" for="draftText">Start from a draft (optional)</label>
+              <textarea id="draftText" spellcheck="true" style="min-height:72px" placeholder="Leave empty to type from nothing."></textarea>
+              <p class="hint">Seeds the buffer, so the run becomes <em>revise this into the target</em> rather than type it from scratch. This is the way to watch draft&#8594;final revision: the mask can permit a long excursion but it cannot make that excursion a plausible earlier draft — only training can. Hand it one instead.</p>
+            </div>
+
             <div class="range-control">
-              <label for="excursion">Excursion budget <span class="value" id="excursionValue">1</span></label>
-              <input id="excursion" type="range" min="0" max="12" step="1" value="1">
-              <p class="hint">How wrong the buffer may get before repair is forced. Raising this causes the runaway-correction failure: an early typo stays "1 edit away" no matter how far the cursor travels, so nothing forces a fix until the end — then the only repair the model uses is backspace, and it deletes the whole tail. Measured at 4: runs of 136+ consecutive backspaces. At 1: longest run 1.</p>
+              <label for="staleness">Staleness window <span class="value" id="stalenessValue">10</span></label>
+              <input id="staleness" type="range" min="2" max="400" step="2" value="10">
+              <p class="hint">Events allowed off-path before repair is forced. <strong>This is the knob that limits how long a detour can run</strong> — not the excursion budget. At 10 a revision must resolve almost immediately; raising it lets the model stay off-target for longer, at the cost of the delete-everything failure returning.</p>
+            </div>
+
+            <div class="range-control">
+              <label for="excursion">Excursion budget <span class="value" id="excursionValue">4</span></label>
+              <input id="excursion" type="range" min="0" max="60" step="1" value="4">
+              <p class="hint">The character-level typo allowance. Raising it alone does little: an excursion also has to be <em>affordable</em> (the remaining budget must still pay to undo it and finish) and <em>fresh</em> (within the staleness window), and those bind first.</p>
             </div>
             <div class="range-control">
               <label for="resolve">Resolve progress <span class="value" id="resolveValue">2</span></label>
@@ -1253,7 +1266,7 @@
       let promptTimer = null;
       let lastRealSession = null;
 
-      function bufReset() { buf = { text: '', cursor: 0 }; }
+      function bufReset(seed = '') { buf = { text: seed, cursor: seed.length }; }
 
       function bufApply(event) {
         const t = event.type;
@@ -1442,7 +1455,9 @@
         const speed = getPlaybackSpeed();
         const events = Array.isArray(session.events) ? session.events : [];
         const target = typeof session.target === 'string' ? session.target : '';
-        bufReset();
+        // The events are edits ON the draft; replaying from empty would show
+        // a different buffer than the server replayed.
+        bufReset(typeof session.draft === 'string' ? session.draft : '');
         renderTypingView(target);
 
         if (events.length === 0) {
@@ -1578,6 +1593,16 @@
         return payload;
       }
 
+      function revRate(bin) {
+        const rates = (info && info.limits && info.limits.rev_rates) || null;
+        return rates ? rates[Math.min(bin, rates.length - 1)] : bin;
+      }
+
+      function formatRev(bin) {
+        const r = revRate(bin);
+        return r === 0 ? 'none' : `${r < 1 ? r.toFixed(2) : r.toFixed(1)}%`;
+      }
+
       function currentMode() {
         const checked = document.querySelector('input[name="mode"]:checked');
         return checked ? checked.value : 'transcription';
@@ -1596,7 +1621,8 @@
           // build a prompt the model was never trained on and quietly blame
           // the result on the model.
           eunc: mode === 'composition' ? 0 : Number(elements.eunc.value),
-          rev: mode === 'transcription' ? 0 : Number($('rev').value)
+          // The slider indexes a geometric bin; the wire carries the rate.
+          rev: mode === 'transcription' ? 0 : revRate(Number($('rev').value))
         };
       }
 
@@ -1685,7 +1711,7 @@
         updateRange(elements.wpm, elements.wpmValue);
         updateRange(elements.ecor, elements.ecorValue);
         updateRange(elements.eunc, elements.euncValue);
-        updateRange($('rev'), $('revValue'));
+        updateRange($('rev'), $('revValue'), formatRev);
 
         const select = $('checkpointSelect');
         const chosen = (data.checkpoint && data.checkpoint.path) || data.pending || '';
@@ -1989,7 +2015,7 @@
         }
 
         cancelPlayback('Generating…');
-        bufReset();
+        bufReset($('draftText').value);
         lastRequestedWpm = Number(elements.wpm.value);
         renderTypingView(text);
         $('progressBuffer').textContent = '';
@@ -2003,6 +2029,8 @@
             seed,
             constrained: $('constrained').checked,
             converge: $('converge').checked,
+            draft: $('draftText').value,
+            staleness_window: Number($('staleness').value),
             excursion_budget: Number($('excursion').value),
             resolve_progress: Number($('resolve').value)
           });
@@ -2069,8 +2097,9 @@
       updateRange(elements.wpm, elements.wpmValue);
       updateRange(elements.ecor, elements.ecorValue);
       updateRange(elements.eunc, elements.euncValue);
-      updateRange($('rev'), $('revValue'));
+      updateRange($('rev'), $('revValue'), formatRev);
       updateRange($('excursion'), $('excursionValue'));
+      updateRange($('staleness'), $('stalenessValue'));
       updateRange($('resolve'), $('resolveValue'));
       updateRange(elements.temperature, elements.temperatureValue, value => value.toFixed(1));
       syncModeUI();
@@ -2080,14 +2109,15 @@
         [elements.wpm, elements.wpmValue],
         [elements.ecor, elements.ecorValue],
         [elements.eunc, elements.euncValue],
-        [$('rev'), $('revValue')]
-      ].forEach(([range, output]) => {
+        [$('rev'), $('revValue'), formatRev]
+      ].forEach(([range, output, fmt]) => {
         range.addEventListener('input', () => {
-          updateRange(range, output);
+          updateRange(range, output, fmt);
           schedulePrompt();
         });
       });
-      [[$('excursion'), $('excursionValue')], [$('resolve'), $('resolveValue')]].forEach(([range, output]) => {
+      [[$('excursion'), $('excursionValue')], [$('resolve'), $('resolveValue')],
+       [$('staleness'), $('stalenessValue')]].forEach(([range, output]) => {
         range.addEventListener('input', () => updateRange(range, output));
       });
       elements.temperature.addEventListener('input', () =>

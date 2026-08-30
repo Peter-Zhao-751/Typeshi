@@ -27,6 +27,7 @@ Design decisions, each measured (see the doc):
 from __future__ import annotations
 
 import re
+import math
 import string
 
 from typeshi import config
@@ -76,6 +77,43 @@ def pct_bin(rate: float) -> int:
     return min(max(int(round(rate * 100)), 0), PCT_MAX)
 
 
+# Revision rate shares <REV:>'s 31 values with the error knobs but not their
+# magnitudes. ECOR genuinely spans the full range (14.8% of composition rows
+# clamp at the 30% ceiling); revisions live near 1%. Measured over the 24,909
+# exported composition windows, whole percents put the MEDIAN window (0.391%
+# revisions) in bin 0 alongside windows that never revise, and 90.9% of all
+# windows into bins 0-2 -- 31 token values expressing three states, which is
+# why the knob conditions nothing.
+#
+# Geometric bins, the shape timebins.py already uses for timing, spread that
+# mass across bins 1-30 while keeping the same 30% ceiling: the median window
+# lands at 8, real writers (1.1-1.3%) at 13-14, a heavy reviser (8%) at 23.
+# Bin 0 stays exactly zero, so "never revises" remains sayable. The vocabulary
+# is unchanged -- only what n means moves.
+REV_MIN = 0.001  # 0.1%, about one op per thousand events
+REV_MAX = 0.30   # the ceiling pct_bin used, kept
+
+
+def _rev_step() -> float:
+    return math.log(REV_MAX / REV_MIN) / (PCT_MAX - 1)
+
+
+def rev_bin(rate: float) -> int:
+    """Revision rate in [0,1] -> geometric bin 0..PCT_MAX."""
+    if rate <= 0:
+        return 0
+    clamped = min(max(rate, REV_MIN), REV_MAX)
+    k = 1 + round(math.log(clamped / REV_MIN) / _rev_step())
+    return min(max(k, 1), PCT_MAX)
+
+
+def rev_from_bin(k: int) -> float:
+    """Bin -> the revision rate it represents. Inverse of rev_bin."""
+    if k <= 0:
+        return 0.0
+    return REV_MIN * math.exp(_rev_step() * (min(k, PCT_MAX) - 1))
+
+
 def special_tokens() -> list[str]:
     """Every fixed token to register with the tokenizer.
 
@@ -108,6 +146,37 @@ def supported_chars() -> frozenset[str]:
     through to fail much later and much less legibly.
     """
     return frozenset(_DIRECT_CHARS) | frozenset(_ESCAPES)
+
+
+# Word-processor homoglyphs of supported characters. Each entry is a
+# RENDERING variant of an exact ASCII identity -- curly quotes, dash family,
+# ellipsis, exotic spaces, zero-widths -- which is why mapping them is
+# lossless. Accented letters and emoji are semantic differences and are
+# deliberately absent: what to do with those belongs to the caller's error
+# path, not a silent rewrite.
+_HOMOGLYPHS = {
+    "‘": "'", "’": "'", "‚": "'", "‛": "'", "′": "'",
+    "“": '"', "”": '"', "„": '"', "‟": '"', "″": '"',
+    "‐": "-", "‑": "-", "‒": "-", "–": "-",
+    "—": "-", "―": "-", "−": "-",
+    "…": "...",
+    " ": " ", " ": " ",
+    **{chr(c): " " for c in range(0x2000, 0x200B)},
+    "​": "", "‌": "", "‍": "", "﻿": "",
+    "\r": "\n",
+}
+
+
+def normalize_typable(text: str) -> str:
+    """Maps word-processor homoglyphs onto the 97 supported identities.
+
+    Pasted prose almost always carries curly quotes, em dashes and CRLF;
+    without this, every such paste is an error to the user and a dropped
+    session to the corpus build. The output is NOT guaranteed fully
+    supported -- unmappable characters pass through unchanged so the caller
+    can reject them legibly.
+    """
+    return "".join(_HOMOGLYPHS.get(c, c) for c in text.replace("\r\n", "\n"))
 
 
 def unsupported_chars(events: list[Event]) -> set[str]:

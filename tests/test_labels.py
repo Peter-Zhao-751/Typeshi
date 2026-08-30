@@ -43,11 +43,16 @@ def test_revision_rate_counts_cursor_and_seldel():
 
 
 def test_knob_tokens_are_stable_and_cover_all_knobs():
+    from typeshi.serialize import rev_bin
+
     labels = SessionLabels(wpm=61.4, corrected_error_rate=0.031,
                            uncorrected_error_rate=0.004, revision_rate=0.12)
+    # REV is on its own geometric scale -- whole percents put the median
+    # composition window in bin 0 next to windows that never revise.
     assert labels.to_tokens("transcription") == (
-        "<MODE:T><WPM:12><ECOR:3><EUNC:0><REV:12>"
+        f"<MODE:T><WPM:12><ECOR:3><EUNC:0><REV:{rev_bin(0.12)}>"
     )
+    assert rev_bin(0.12) != 12, "the scale must not coincide with percents"
     assert labels.to_tokens("composition").startswith("<MODE:C>")
 
 

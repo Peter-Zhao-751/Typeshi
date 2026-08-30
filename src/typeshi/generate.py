@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Sequence
 
 from typeshi.buffer import TextBuffer
 from typeshi.dataset import build_prompt
-from typeshi.events import Event
+from typeshi.events import Event, EventType
 from typeshi.labels import SessionLabels
 from typeshi.serialize import deserialize
 
@@ -174,6 +174,7 @@ def generate_session(
                 tok, prompt_len, target_text,
                 excursion_budget=excursion_budget,
                 resolve_progress=resolve_progress,
+                token_budget=max_new_tokens,
             )
         )
     elif constrained:
@@ -304,7 +305,7 @@ def generate_windowed(
     model,
     tok,
     target_text: str,
-    labels: SessionLabels,
+    labels: SessionLabels | Sequence[SessionLabels],
     temperature: float = 1.0,
     seed: int = 0,
     window_events: int = 512,
@@ -312,6 +313,9 @@ def generate_windowed(
     mode: str = "composition",
     excursion_budget: int = 4,
     resolve_progress: int = 2,
+    staleness_window: int = 10,
+    caret_hop_cap: int = 3,
+    draft: str = "",
     observer: Callable[[int, str], None] | None = None,
     stop_event=None,
 ) -> list[Event]:
@@ -329,6 +333,16 @@ def generate_windowed(
     Returns the stitched event stream, guaranteed to type `target_text`;
     raises ConvergenceError (a ValueError) if the window allowance runs out
     unconverged, carrying the partial stream so a caller can show it.
+
+    `labels` may be a single SessionLabels or a per-window sequence. Training
+    labels describe THEIR window (window_labels), so a session-level constant
+    tells the model something it was taught means "this window behaves like
+    this" -- it is never prompted into a revision pass. A sequence (e.g.
+    window_label_schedule of a real paired session) conditions window w on
+    entry w, holding the last entry once windows outrun it. Alignment with
+    training's 512-event windows is approximate -- generated windows are
+    token-budget-shaped -- but approximate per-window truth beats an exact
+    session average that is wrong for every window.
     """
     import torch
 
@@ -337,10 +351,27 @@ def generate_windowed(
     from typeshi.constrain import GumbelSampleProcessor
     from typeshi.converge import ConvergenceProcessor
 
+    schedule = (list(labels) if isinstance(labels, (list, tuple))
+                else [labels])
+    if not schedule:
+        raise ValueError("labels must be a SessionLabels or a non-empty "
+                         "sequence of them")
+
     if max_windows is None:
         # ~2 events per char at 2 tokens each, plus excursion room, in
         # window-sized pieces; +2 windows of pure slack.
         max_windows = 2 + (4 * len(target_text)) // window_events
+    # What the run as a whole can spend: every window's allowance. The
+    # affordability check prices excursions against THIS, not one window's
+    # slice -- window-scoped budgets were the measured starvation
+    # (open-work.md: a 348-char target spends ~700 of its 1088-token window
+    # just typing, so no long excursion was ever affordable in a long
+    # target). Scoping to the run is sound because state is replayed across
+    # boundaries -- an excursion cut by a window edge resumes in the next
+    # window rather than stranding -- and steps_total counts every spent
+    # token, trimmed tails included, so the pool cannot be overdrawn. A cut
+    # mid-op costs at most one op restart, absorbed by the slack windows.
+    run_budget = max_windows * (2 * window_events + 64)
 
     # One terminator set for the stop condition AND the truncation. Without
     # passing it to generate(), the fine-tune samples the EOS its mask unmasks
@@ -349,9 +380,14 @@ def generate_windowed(
     eos_ids = terminator_ids(tok, model)
 
     events: list[Event] = []
-    written = ""
-    cursor: int | None = None
+    # A draft seeds the buffer, so the run becomes "revise this into the
+    # target" rather than "type the target from nothing". The mask can permit
+    # a long excursion but cannot make it a plausible earlier draft; handing
+    # it one is what turns the guarantee into an actual revision sequence.
+    written = draft
+    cursor: int | None = len(draft) if draft else None
     progress: list[int] = []  # on-path chars after each window
+    revised: list[bool] = []  # did the window contain cursor/seldel ops
     steps_total = 0
 
     def fail(message: str, stalled: bool = False, cancelled: bool = False):
@@ -362,7 +398,8 @@ def generate_windowed(
         if stop_event is not None and stop_event.is_set():
             raise fail(f"cancelled after {w} window(s)", cancelled=True)
         torch.manual_seed(seed + w)
-        prompt = build_prompt(target_text, labels, mode,
+        wl = schedule[min(w, len(schedule) - 1)]
+        prompt = build_prompt(target_text, wl, mode,
                               written_so_far=written,
                               cursor=cursor if written else None)
         inputs = tok(prompt, return_tensors="pt").to(model.device)
@@ -371,7 +408,13 @@ def generate_windowed(
             tok, prompt_len, target_text,
             excursion_budget=excursion_budget,
             resolve_progress=resolve_progress,
+            staleness_window=staleness_window,
+            caret_hop_cap=caret_hop_cap,
             written_so_far=written, cursor=cursor,
+            # The run's remaining allowance (see run_budget above). Each
+            # window still decodes at most 2*window_events+64 tokens; only
+            # the affordability horizon is run-scoped.
+            token_budget=run_budget - steps_total,
         )
         chain = [proc, GumbelSampleProcessor(temperature=temperature, seed=seed + w)]
         if observer is not None:
@@ -412,7 +455,10 @@ def generate_windowed(
 
         # Authoritative state: replay everything from scratch each window --
         # cheaper than proving incremental state equal to the processor's.
-        buf = TextBuffer()
+        # From the DRAFT, not from empty: the events are edits on top of it,
+        # and replaying them against an empty buffer would silently disagree
+        # with what the processor's mask was reasoning about.
+        buf = TextBuffer(draft)
         for e in events:
             buf.apply(e)
         written, cursor = buf.text, buf.cursor
@@ -427,7 +473,13 @@ def generate_windowed(
                 break
             on_path += 1
         progress.append(on_path)
-    stalled = len(progress) > 1 and progress[-1] <= progress[-2]
+        revised.append(any(e.type in (EventType.CURSOR, EventType.SELDEL)
+                           for e in window))
+    # Revision ops are progress of the other kind: a window spent moving the
+    # caret and deleting grows no prefix, and branding it stalled would name
+    # legitimate revision as the failure signature.
+    stalled = (len(progress) > 1 and progress[-1] <= progress[-2]
+               and not revised[-1])
     raise fail(
         f"did not converge within {max_windows} windows: "
         f"{len(events)} events, on-path {progress[-1] if progress else 0}"

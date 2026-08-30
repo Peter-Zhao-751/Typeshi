@@ -21,7 +21,9 @@ import random
 from pathlib import Path
 from typing import Callable, Iterable
 
-from typeshi.adapters import aalto, klicke
+import itertools
+
+from typeshi.adapters import aalto, iterater, klicke
 from typeshi.dataset import build_examples
 from typeshi.labels import compute_labels
 from typeshi.serialize import unsupported_chars
@@ -140,6 +142,49 @@ def collect_aalto(
     rows, dropped = map_file_rows(files, aalto_file_rows, workers, label="aalto")
     if dropped:
         print(f"aalto: dropped {dropped} sessions (unsupported chars/markers)")
+    return rows
+
+
+def collect_iterater(
+    root: Path, timing_root: Path, limit: int | None, seed: int
+) -> list[Row]:
+    """Synthetic revision sessions from IteraTeR, timed from KLiCKe pools.
+
+    Single-process on purpose: the whole corpus is 559 docs plus 4,018
+    sentences and synthesizes in seconds -- the parallel map's spawn cost
+    would dominate. Rows are namespaced by doc_id so writer-hash splitting
+    keeps a document's chain sessions and sentence mini-sessions together,
+    and the hash split makes the assignment identical whether this corpus
+    is exported alone (the phase-4 shard) or alongside the others.
+    """
+    from typeshi.adapters.timing import TimingSampler
+
+    timing = TimingSampler.from_klicke(timing_root, seed=seed)
+    dropped = 0
+
+    def on_drop(_doc_id: str, _reason: str) -> None:
+        nonlocal dropped
+        dropped += 1
+
+    rows: list[Row] = []
+    unrepresentable = 0
+    kept = 0
+    sessions = itertools.chain(
+        iterater.iter_sessions(root, timing, on_drop),
+        iterater.iter_sentence_sessions(root, timing, on_drop),
+    )
+    for doc_id, target, events in sessions:
+        if limit and kept >= limit:
+            break
+        examples = session_examples(target, events, "composition")
+        if examples is None:
+            unrepresentable += 1
+            continue
+        kept += 1
+        rows += [(f"iterater:{doc_id}", ex) for ex in examples]
+    if dropped or unrepresentable:
+        print(f"iterater: dropped {dropped} unverifiable sessions, "
+              f"{unrepresentable} with unsupported chars/markers")
     return rows
 
 

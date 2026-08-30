@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from typeshi.buffer import replay
 from typeshi.config import REPLAY_SIM_MIN
 from typeshi.events import Event, EventType
 from typeshi.eval.discriminator import (
@@ -55,7 +54,8 @@ SERIAL_FEATURES: list[tuple[str, str, float]] = [
 ]
 
 
-def validity(events: list[Event], target_text: str, mode: str) -> dict:
+def validity(events: list[Event], target_text: str, mode: str,
+             start_text: str = "") -> dict:
     """The per-sample form of the Tier-1 validity gate.
 
     Transcription is the gated one: KEY/BACKSPACE only, replayed text within
@@ -64,7 +64,7 @@ def validity(events: list[Event], target_text: str, mode: str) -> dict:
     """
     if not events:
         return {"ok": False, "similarity": 0.0, "reason": "no events"}
-    produced = replay_or_empty(events)
+    produced = replay_or_empty(events, start_text)
     similarity = 1 - _levenshtein(produced, target_text) / max(len(target_text), 1)
     off_type = sorted(
         {e.type.value for e in events
@@ -84,15 +84,10 @@ def validity(events: list[Event], target_text: str, mode: str) -> dict:
     }
 
 
-def replay_or_empty(events: list[Event]) -> str:
-    from typeshi.buffer import ReplayError
+def replay_or_empty(events: list[Event], start_text: str = "") -> str:
+    from typeshi.portal.rows import replay_safe
 
-    try:
-        return replay(events)
-    except ReplayError:
-        from typeshi.portal.rows import replay_safe
-
-        return replay_safe(events)[0]
+    return replay_safe(events, start_text)[0]
 
 
 def serial_readout(events: list[Event],

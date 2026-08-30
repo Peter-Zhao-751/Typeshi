@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Iterable
 
 from typeshi.buffer import TextBuffer
 from typeshi.events import Event
-from typeshi.labels import SessionLabels
+from typeshi.labels import SessionLabels, window_labels
 from typeshi.serialize import MARKERS, serialize
 
 # Continuation prompts embed the buffer text; a full essay can push the prompt
@@ -65,10 +66,14 @@ def build_examples(
 
     for start in range(0, len(events), max_events):
         window = events[start : start + max_events]
+        # Labels describe THIS window. Passing the session's down made the
+        # conditioning tokens describe something the completion does not do:
+        # 39.9% of exported windows labelled <REV:0> contain cursor ops.
+        wl = window_labels(window, labels, buf.text, buf.cursor)
         prompt = (
-            build_prompt(target_text, labels, mode)
+            build_prompt(target_text, wl, mode)
             if start == 0
-            else build_prompt(target_text, labels, mode, buf.text, buf.cursor)
+            else build_prompt(target_text, wl, mode, buf.text, buf.cursor)
         )
         completion = serialize(window, prev_press_time=prev_press)
         examples.append({"prompt": prompt, "completion": completion})
@@ -76,6 +81,57 @@ def build_examples(
         for e in window:
             buf.apply(e)
     return examples
+
+
+def window_label_schedule(
+    events: list[Event],
+    labels: SessionLabels,
+    max_events: int = 512,
+) -> list[SessionLabels]:
+    """The per-window labels a real session would train under.
+
+    generate_windowed conditions window w on entry w of a label sequence;
+    handing it this schedule -- computed from a real paired session exactly
+    the way build_examples labels training windows -- is what keeps
+    generation-time conditioning inside the distribution the model was
+    taught. The equivalence is pinned by test: any drift between this walk
+    and build_examples' is a bug.
+    """
+    schedule: list[SessionLabels] = []
+    buf = TextBuffer()
+    for start in range(0, len(events), max_events):
+        window = events[start : start + max_events]
+        schedule.append(window_labels(window, labels, buf.text, buf.cursor))
+        for e in window:
+            buf.apply(e)
+    return schedule
+
+
+_REV_TOKEN = re.compile(r"<REV:(\d+)>")
+
+
+def revision_repeats(prompt: str, factor: int, min_bin: int) -> int:
+    """How many times to write a training window, to rebalance revisions.
+
+    Measured over 24,909 exported composition windows: 87% sit at REV <= 1 and
+    only 0.9% at REV >= 5. The model has effectively never seen deliberate
+    revision, so unblocking it in the decoder does not summon it. Duplicating
+    the rare windows is the cheapest way to put the behaviour in front of it
+    without new data.
+
+    Only meaningful AFTER labels became per-window: applied to session-labelled
+    windows it would have duplicated whatever the session average happened to
+    say, which matched the window only 52.9% of the time.
+
+    Returns 1 unless asked otherwise, so the export stays byte-identical by
+    default.
+    """
+    if factor <= 1:
+        return 1
+    match = _REV_TOKEN.search(prompt)
+    if match is None:
+        return 1
+    return factor if int(match.group(1)) >= min_bin else 1
 
 
 def split_by_writer(

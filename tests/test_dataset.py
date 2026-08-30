@@ -1,7 +1,8 @@
 import pytest
 from typeshi.dataset import build_examples, build_prompt, split_by_writer
+from typeshi.serialize import wpm_bin
 from typeshi.events import Event
-from typeshi.labels import SessionLabels
+from typeshi.labels import SessionLabels, window_labels
 
 LABELS = SessionLabels(60.0, 0.02, 0.0, 0.05)
 
@@ -17,11 +18,37 @@ def test_short_session_becomes_one_example():
 
 
 def test_prompt_contains_target_text_and_knob_tokens():
-    ex = build_examples("hello", _type("hello"), LABELS, mode="transcription")
+    events = _type("hello")
+    ex = build_examples("hello", events, LABELS, mode="transcription")
     assert "<TARGET>hello" in ex[0]["prompt"]
-    assert "<WPM:12>" in ex[0]["prompt"]          # 60 wpm // 5
+    # The speed token describes the window's OWN typing, not a caller-supplied
+    # session figure -- attaching session values to windows is the
+    # mislabelling that made these knobs unlearnable in composition.
+    assert f"<WPM:{wpm_bin(window_labels(events, LABELS).wpm)}>" in ex[0]["prompt"]
     assert ex[0]["prompt"].startswith("<MODE:T>")
     assert ex[0]["prompt"].endswith("<PROCESS>")
+
+
+def test_window_label_schedule_matches_the_labels_training_embedded():
+    """Generation needs the same per-window labels training saw. The schedule
+    of a real session must reproduce, window for window, exactly the knob
+    header build_examples put in each window's prompt -- any drift and
+    generation is conditioned on something the model was not taught."""
+    from typeshi.dataset import window_label_schedule
+
+    events = _type("a" * 700)
+    # A revision burst in the second window so its labels differ from both
+    # the first window's and the session aggregate.
+    events[600] = Event.cursor(3, events[600].press_time)
+    events[601] = Event.seldel(1, 3, events[601].press_time)
+    ex = build_examples("a" * 700, events, LABELS, mode="composition",
+                        max_events=512)
+    schedule = window_label_schedule(events, LABELS, max_events=512)
+
+    assert len(schedule) == len(ex) == 2
+    for labels, example in zip(schedule, ex):
+        assert example["prompt"].startswith(labels.to_tokens("composition"))
+    assert schedule[0].revision_rate != schedule[1].revision_rate
 
 
 def test_prompt_has_no_instruction_boilerplate():
@@ -139,8 +166,11 @@ def test_split_ignores_duplicate_writer_ids():
 
 def test_build_prompt_is_shared_by_training_and_inference():
     """Training export and generate() must produce byte-identical prompts."""
-    from_export = build_examples("hi", _type("hi"), LABELS, mode="transcription")[0]
-    direct = build_prompt("hi", LABELS, "transcription")
+    events = _type("hi")
+    from_export = build_examples("hi", events, LABELS, mode="transcription")[0]
+    # Same function, same bytes -- but the export derives its labels from the
+    # window rather than taking them on faith.
+    direct = build_prompt("hi", window_labels(events, LABELS), "transcription")
     assert from_export["prompt"] == direct
 
 
@@ -174,3 +204,110 @@ def test_unsupported_chars_flags_non_ascii_keys():
     assert unsupported_chars(ok) == set()
     cyrillic = ok + [Event.key("е", 5000, 5050)]
     assert unsupported_chars(cyrillic) == {"е"}
+
+
+def test_window_labels_describe_the_window_not_the_session():
+    """Session labels on every window is a mislabelling, not a rounding.
+
+    Measured over 24,909 exported composition windows: the <REV:> bin matched
+    what that window actually did only 52.9% of the time -- 39.9% of windows
+    labelled <REV:0> do revise, and 24.0% labelled <REV:n>, n>0, do not. A
+    third of the signal teaches the model that the token predicts nothing,
+    which is exactly the behaviour the knob shows.
+    """
+    from typeshi.dataset import build_examples
+    from typeshi.events import Event
+    from typeshi.labels import compute_labels
+
+    # Window 1: four plain keystrokes. Window 2: three keys and one cursor op.
+    events = [Event.key(c, i * 100, i * 100 + 50)
+              for i, c in enumerate("abcd")]
+    events += [Event.key("e", 400, 450), Event.cursor(0, 500),
+               Event.key("f", 600, 650), Event.key("g", 700, 750)]
+    session = compute_labels(events, "abcdefg")
+
+    examples = build_examples("abcdefg", events, session, "composition",
+                              max_events=4)
+
+    assert len(examples) == 2
+    from typeshi.serialize import rev_bin
+
+    assert "<REV:0>" in examples[0]["prompt"], "a window with no cursor op"
+    assert f"<REV:{rev_bin(0.25)}>" in examples[1]["prompt"], \
+        "one cursor op in four events"
+
+
+def test_window_labels_inherit_the_sessions_uncorrected_rate():
+    """EUNC is how far the FINAL text lands from the target -- a whole-session
+    quantity. A window produces only part of the text, so recomputing it per
+    window would measure a shortfall that later windows go on to fill."""
+    from typeshi.dataset import build_examples
+    from typeshi.events import Event
+    from typeshi.labels import compute_labels
+    from typeshi.serialize import pct_bin
+
+    events = [Event.key(c, i * 100, i * 100 + 50)
+              for i, c in enumerate("abcdefgh")]
+    session = compute_labels(events, "abcdefgh")
+    examples = build_examples("abcdefgh", events, session, "transcription",
+                              max_events=4)
+
+    want = f"<EUNC:{pct_bin(session.uncorrected_error_rate)}>"
+    assert all(want in ex["prompt"] for ex in examples)
+
+
+def test_revision_repeats_oversamples_only_high_revision_windows():
+    """Only 0.9% of exported composition windows sit at REV >= 5, so the
+    behaviour is present but far too rare to learn. Oversampling is only
+    meaningful once the labels are per-window -- before that it would have
+    duplicated whatever the session average happened to say."""
+    from typeshi.dataset import revision_repeats
+
+    high = "<MODE:C><WPM:8><ECOR:12><EUNC:0><REV:9><TARGET>x<PROCESS>"
+    low = "<MODE:C><WPM:8><ECOR:12><EUNC:0><REV:1><TARGET>x<PROCESS>"
+    assert revision_repeats(high, factor=20, min_bin=5) == 20
+    assert revision_repeats(low, factor=20, min_bin=5) == 1
+
+
+def test_revision_repeats_is_inert_by_default():
+    """The export must be byte-identical unless oversampling is asked for."""
+    from typeshi.dataset import revision_repeats
+
+    prompt = "<MODE:C><WPM:8><ECOR:12><EUNC:0><REV:9><TARGET>x<PROCESS>"
+    assert revision_repeats(prompt, factor=1, min_bin=5) == 1
+    assert revision_repeats("no rev token here", factor=20, min_bin=5) == 1
+
+
+def test_single_window_labels_match_the_session_they_came_from():
+    """A session short enough not to window must be labelled identically
+    either way -- otherwise this change silently shifts every Aalto row, and
+    transcription knob fidelity (r=0.994) is the control the diagnosis rests
+    on."""
+    from typeshi.events import Event
+    from typeshi.labels import compute_labels, window_labels
+
+    events = [Event.key("a", 0, 50), Event.key("X", 100, 150),
+              Event.backspace(200, 250), Event.key("b", 300, 350)]
+    session = compute_labels(events, "ab")
+    win = window_labels(events, session)
+    assert win.wpm == pytest.approx(session.wpm)
+    assert win.corrected_error_rate == pytest.approx(session.corrected_error_rate)
+    assert win.revision_rate == pytest.approx(session.revision_rate)
+
+
+def test_window_labels_survive_a_continuation_windows_cursor_ops():
+    """A continuation window's <CUR:p> indexes the buffer as it stood, not the
+    window's own text. Replaying the window from empty raises ReplayError --
+    caught by a real export: "cursor 651 outside buffer of length 271"."""
+    from typeshi.dataset import build_examples
+    from typeshi.events import Event
+    from typeshi.labels import compute_labels
+
+    events = [Event.key(c, i * 100, i * 100 + 50)
+              for i, c in enumerate("abcdef")]
+    events += [Event.cursor(5, 700), Event.key("X", 800, 850)]
+    session = compute_labels(events, "abcdeXf")
+
+    examples = build_examples("abcdeXf", events, session, "composition",
+                              max_events=6)
+    assert len(examples) == 2

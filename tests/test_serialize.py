@@ -105,6 +105,24 @@ def test_empty_stream_round_trips():
     assert deserialize("") == []
 
 
+def test_normalize_typable_maps_word_processor_homoglyphs():
+    from typeshi.serialize import normalize_typable, supported_chars
+
+    s = "“Smart” quotes—dashes… and spaces\r\nplus ‘singles’"
+    out = normalize_typable(s)
+    assert set(out) <= supported_chars()
+    assert out == "\"Smart\" quotes-dashes... and spaces\nplus 'singles'"
+
+
+def test_normalize_typable_leaves_the_unmappable_for_the_caller():
+    """Only homoglyphs with an exact ASCII identity are mapped. An accented
+    letter or emoji is a semantic difference, not a rendering one; deciding
+    what to do with it belongs to the caller's error path."""
+    from typeshi.serialize import normalize_typable
+
+    assert normalize_typable("café \U0001f600") == "café \U0001f600"
+
+
 def test_knob_binning_clamps_and_scales():
     assert wpm_bin(61.4) == 12
     assert wpm_bin(92) == 18
@@ -132,3 +150,52 @@ def test_vocabulary_size_is_as_designed():
     expected = 97 * 128 + 128 + 128 + 2 + WPM_BINS + 3 * (PCT_MAX + 1) + 3
     assert len(whole) == expected
     assert len(whole) == 12_810
+
+
+# --- REV gets its own scale ------------------------------------------------
+
+def test_rev_bins_round_trip():
+    from typeshi.serialize import PCT_MAX, rev_bin, rev_from_bin
+
+    for k in range(PCT_MAX + 1):
+        assert rev_bin(rev_from_bin(k)) == k, k
+
+
+def test_rev_bin_zero_is_reserved_for_no_revisions_at_all():
+    """<REV:0> has to keep meaning "none", or the model cannot be asked for a
+    session with no cursor ops."""
+    from typeshi.serialize import rev_bin
+
+    assert rev_bin(0.0) == 0
+    assert rev_bin(0.0001) >= 1
+
+
+def test_rev_bin_resolves_the_range_the_data_actually_occupies():
+    """Whole percents put the MEDIAN composition window (0.391% revisions) in
+    bin 0 alongside windows that never revise, and 90.9% of all windows into
+    bins 0-2 -- 31 token values expressing three states. Real writers sit at
+    1.1-1.3%, which must be distinguishable from both."""
+    from typeshi.serialize import pct_bin, rev_bin
+
+    median, real_low, real_high = 0.00391, 0.011, 0.013
+    assert pct_bin(median) == 0                      # the old collapse
+    assert rev_bin(median) > 2                       # now resolved
+    assert rev_bin(real_low) != rev_bin(median)      # human vs median window
+    assert rev_bin(real_high) >= rev_bin(real_low)
+    assert rev_bin(0.08) > rev_bin(real_high)        # heavy reviser reachable
+
+
+def test_rev_scale_does_not_change_the_vocabulary():
+    """Same 31 <REV:> tokens -- only their meaning moves, so no embedding
+    resize and no retokenization."""
+    from typeshi.serialize import special_tokens
+
+    assert sum(1 for t in special_tokens() if t.startswith("<REV:")) == 31
+
+
+def test_to_tokens_uses_the_revision_scale():
+    from typeshi.labels import SessionLabels
+    from typeshi.serialize import rev_bin
+
+    labels = SessionLabels(60.0, 0.02, 0.0, 0.00391)
+    assert f"<REV:{rev_bin(0.00391)}>" in labels.to_tokens("composition")

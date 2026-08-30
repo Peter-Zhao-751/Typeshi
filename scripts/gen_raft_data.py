@@ -26,7 +26,7 @@ import numpy as np
 from typeshi.eval.discriminator import featurize, train_discriminator
 from typeshi.generate import generate
 from typeshi.labels import SessionLabels
-from typeshi.serialize import codec_roundtrip, serialize
+from typeshi.serialize import codec_roundtrip, rev_from_bin, serialize
 from typeshi.buffer import replay
 from typeshi.labels import _levenshtein
 
@@ -43,13 +43,14 @@ def labels_from_prompt(prompt: str) -> SessionLabels | None:
     sampled under the stored prompt's own knob bins -- anything else pairs a
     completion with conditioning it was not generated under and trains the
     model that the knobs are noise. wpm_bin(b*5) == b and pct_bin(b/100)
-    == b invert the binning; the caller asserts byte-equality.
+    == b invert the linear bins; <REV:> is geometric, so its inverse is
+    rev_from_bin, not b/100. The caller asserts byte-equality.
     """
     m = re.search(r"<WPM:(\d+)><ECOR:(\d+)><EUNC:(\d+)><REV:(\d+)>", prompt)
     if not m:
         return None
     w, ec, eu, rv = (int(g) for g in m.groups())
-    return SessionLabels(w * 5, ec / 100, eu / 100, rv / 100)
+    return SessionLabels(w * 5, ec / 100, eu / 100, rev_from_bin(rv))
 
 
 def main() -> None:

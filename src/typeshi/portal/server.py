@@ -18,7 +18,10 @@ from typeshi.serialize import (
     PCT_MAX,
     WPM_BIN_WIDTH,
     WPM_BINS,
+    normalize_typable,
     pct_bin,
+    rev_bin,
+    rev_from_bin,
     supported_chars,
     wpm_bin,
 )
@@ -31,7 +34,10 @@ class PortalError(Exception):
 
 
 def validate_target(text: str, max_chars: int) -> str:
-    text = (text or "").strip()
+    # Curly quotes, em dashes and CRLF are what every pasted paragraph
+    # carries; they have exact ASCII identities, so they are normalized
+    # rather than bounced. Genuinely untypable characters still 400 below.
+    text = normalize_typable(text or "").strip()
     if not text:
         raise PortalError("target text is empty")
     if len(text) > max_chars:
@@ -55,6 +61,14 @@ def validate_target(text: str, max_chars: int) -> str:
     return text
 
 
+def validate_draft(text: str, max_chars: int) -> str:
+    """Same rules as the target, but empty is the normal case."""
+    text = text or ""
+    if not text.strip():
+        return ""
+    return validate_target(text, max_chars)
+
+
 def labels_from(req: dict) -> SessionLabels:
     """Percent-valued UI knobs become the fractions SessionLabels wants."""
     return SessionLabels(
@@ -65,16 +79,14 @@ def labels_from(req: dict) -> SessionLabels:
     )
 
 
-# The library default is 4. That is too loose here for a structural reason:
-# stage 2 measures off-path depth as edit distance to the best target prefix,
-# which says how WRONG the buffer is, not how far BACK the wrongness sits. One
-# early typo reads as depth 1 forever, however many correct characters follow,
-# so the excursion guard never fires -- while the only repair the model
-# actually emits is backspace, whose cost is the whole distance from the
-# cursor back to the error. Measured on a 197-char paragraph: budget 4 gave
-# runs of 136-141 consecutive backspaces and a 30-36% backspace rate; budget 1
-# gave 205 events, 2% backspaces, longest run 1.
-DEFAULT_EXCURSION_BUDGET = 1
+# Back to the library default now that staleness, not this constant, is what
+# forces prompt repair. Dropping it to 1 was a mitigation for the
+# types-the-line-then-deletes-it-all bug: edit-distance depth never grew as
+# the model typed past an early typo, so nothing forced a fix until the end.
+# Staleness expresses that directly, and affordability lets a deliberate
+# revision run far past this number, so the typo budget can go back to
+# meaning what it says -- the allowance for a character-level slip.
+DEFAULT_EXCURSION_BUDGET = 4
 
 
 def default_budget(text: str, mode: str) -> int:
@@ -149,6 +161,12 @@ class Portal:
                 "wpm_bin_width": WPM_BIN_WIDTH,
                 "wpm_max": WPM_BINS * WPM_BIN_WIDTH - WPM_BIN_WIDTH,
                 "pct_max": PCT_MAX,
+                # <REV:> is on a geometric scale of its own: whole percents put
+                # the median composition window (0.391%) in bin 0 alongside
+                # windows that never revise. The slider indexes bins and shows
+                # the rate each one means.
+                "rev_rates": [round(100 * rev_from_bin(k), 3)
+                              for k in range(PCT_MAX + 1)],
             },
             "corpus": {"available": c.available, "count": c.count()},
             "queue_depth": self.queue.queue_depth(),
@@ -176,7 +194,7 @@ class Portal:
                 "wpm": wpm_bin(labels.wpm),
                 "ecor": pct_bin(labels.corrected_error_rate),
                 "eunc": pct_bin(labels.uncorrected_error_rate),
-                "rev": pct_bin(labels.revision_rate),
+                "rev": rev_bin(labels.revision_rate),
             },
         }
 
@@ -221,12 +239,12 @@ class Portal:
 
         return observe
 
-    def _payload(self, events, text, mode, req, **extra) -> dict:
+    def _payload(self, events, text, mode, req, draft: str = "", **extra) -> dict:
         band = self.band()
         return {
-            "session": rows.session_payload(events, text),
+            "session": rows.session_payload(events, text, draft),
             "mode": mode,
-            "validity": readout.validity(events, text, mode),
+            "validity": readout.validity(events, text, mode, draft),
             "serial": readout.serial_readout(events, band),
             "controls": readout.controls(
                 events, text, float(req.get("wpm", 60)), int(req.get("seed", 0))
@@ -249,6 +267,7 @@ class Portal:
         """
         from typeshi.generate import ConvergenceError, generate_windowed
 
+        draft = validate_draft(req.get("draft", ""), self.max_chars)
         seen = {"steps": 0}
         report = self._observer(job, None)
 
@@ -267,6 +286,8 @@ class Portal:
                 excursion_budget=int(req.get("excursion_budget",
                                             DEFAULT_EXCURSION_BUDGET)),
                 resolve_progress=int(req.get("resolve_progress", 2)),
+                staleness_window=int(req.get("staleness_window", 10)),
+                draft=draft,
                 observer=observe,
                 stop_event=job.stop_event,
             )
@@ -274,7 +295,7 @@ class Portal:
             events, converged, failure = exc.events, False, str(exc)
 
         return self._payload(
-            events, text, mode, req,
+            events, text, mode, req, draft=draft,
             constrained=True,
             converged=converged,
             failure=failure,

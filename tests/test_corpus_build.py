@@ -95,3 +95,41 @@ def test_map_file_rows_preserves_submission_order(tmp_path):
     writers = [w for w, _ in rows]
     seen_order = list(dict.fromkeys(writers))
     assert seen_order == [f"aalto:{f.stem.split('_')[0]}" for f in files]
+
+
+def test_collect_iterater_yields_namespaced_composition_rows(tmp_path):
+    """The IteraTeR collector plugs synthesis into the same funnel as the
+    real corpora: session_examples gates, composition mode, rows namespaced
+    by doc so writer-hash splitting keeps every view of a document (doc
+    chains and sentence mini-sessions alike) on one side of the split."""
+    import json
+
+    from typeshi.corpus_build import collect_iterater
+
+    root = tmp_path / "iterater"
+    (root / "human_doc").mkdir(parents=True)
+    (root / "human_sent").mkdir(parents=True)
+    doc = {
+        "doc_id": "d1", "revision_depth": 1, "domain": "arxiv",
+        "before_revision": "the model is good at typing.",
+        "after_revision": "the model is capable at typing.",
+        "sents_char_pos": [],
+        "edit_actions": [{
+            "type": "R", "before": "good", "after": "capable",
+            "start_char_pos": 13, "end_char_pos": 17,
+            "major_intent": "clarity", "raw_intents": ["clarity"],
+        }],
+    }
+    (root / "human_doc" / "train.json").write_text(json.dumps(doc) + "\n")
+    sent = {"before_sent": "it was good.", "after_sent": "it was great.",
+            "labels": "clarity", "doc_id": "d2", "revision_depth": 1}
+    (root / "human_sent" / "train.json").write_text(json.dumps(sent) + "\n")
+
+    rows = collect_iterater(root, Path(__file__).parent / "fixtures",
+                            limit=None, seed=0)
+
+    assert len(rows) >= 2
+    writers = {w for w, _ in rows}
+    assert writers == {"iterater:d1", "iterater:d2"}
+    assert all(ex["prompt"].startswith("<MODE:C>") for _, ex in rows)
+    assert all("<REV:" in ex["prompt"] for _, ex in rows)

@@ -49,15 +49,20 @@ def span_ms(events: list[Event]) -> float:
     return max(ends + starts) - min(starts)
 
 
-def replay_safe(events: list[Event]) -> tuple[str, str | None]:
+def replay_safe(events: list[Event],
+                start_text: str = "") -> tuple[str, str | None]:
     """Replays as far as it can, reporting the first invalid event.
 
     A ReplayError is the interesting thing to SHOW -- unconstrained
     composition emitted out-of-buffer cursor moves in 2 of 5 probe sessions
     -- so the portal renders the partial stream and names the defect instead
     of turning the whole request into a 400.
+
+    `start_text` is the draft a revision run began from: its events are edits
+    on top of that, and replaying them from empty would report the wrong
+    produced text and call a converged run a failure.
     """
-    buf = TextBuffer()
+    buf = TextBuffer(start_text)
     for i, e in enumerate(events):
         try:
             buf.apply(e)
@@ -85,8 +90,9 @@ def pause_fraction(events: list[Event], threshold_ms: float = 1000.0) -> float:
     return round(sum(1 for g in gaps if g > threshold_ms) / len(gaps), 4)
 
 
-def session_stats(events: list[Event], target_text: str) -> dict:
-    produced, replay_error = replay_safe(events)
+def session_stats(events: list[Event], target_text: str,
+                  start_text: str = "") -> dict:
+    produced, replay_error = replay_safe(events, start_text)
     duration = span_ms(events)
     minutes = duration / 60_000
     return {
@@ -106,5 +112,8 @@ def session_stats(events: list[Event], target_text: str) -> dict:
     }
 
 
-def session_payload(events: list[Event], target_text: str) -> dict:
-    return {**session_stats(events, target_text), "events": event_rows(events)}
+def session_payload(events: list[Event], target_text: str,
+                    start_text: str = "") -> dict:
+    return {**session_stats(events, target_text, start_text),
+            "draft": start_text,
+            "events": event_rows(events)}

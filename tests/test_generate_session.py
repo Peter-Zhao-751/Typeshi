@@ -285,6 +285,146 @@ def test_windowed_run_honours_cancellation():
     assert model.seen_steps == 0
 
 
+def test_windowed_generation_conditions_each_window_on_its_own_labels():
+    """Training labels are per-window (window_labels); handing generation one
+    session-level SessionLabels for every window prompts the model with
+    conditioning it was taught means something else -- it is never told
+    "this window is a revision pass". A label SEQUENCE must be accepted and
+    consumed one entry per window."""
+    from typeshi.generate import ConvergenceError, generate_windowed
+    from typeshi.serialize import rev_bin
+
+    class RecordingTok(FakeTok):
+        def __init__(self):
+            super().__init__()
+            self.prompts = []
+
+        def __call__(self, prompt, return_tensors=None):
+            self.prompts.append(prompt)
+            return super().__call__(prompt, return_tensors)
+
+    tok = RecordingTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+    typing_window = SessionLabels(60, 0.0, 0.0, 0.0)
+    revision_window = SessionLabels(12, 0.0, 0.0, 0.012)
+
+    with pytest.raises(ConvergenceError):
+        generate_windowed(model, tok, "hip",
+                          [typing_window, revision_window], window_events=8)
+
+    assert len(tok.prompts) >= 2
+    assert "<REV:0>" in tok.prompts[0]
+    assert "<WPM:12>" in tok.prompts[0]
+    for later in tok.prompts[1:]:  # window 1 onward: the revision entry
+        assert f"<REV:{rev_bin(0.012)}>" in later
+        assert "<WPM:2>" in later
+
+
+def test_windowed_generation_reuses_the_last_label_when_windows_outrun_them():
+    """The schedule comes from a real session whose window count need not
+    match generation's; running past the end must hold the last entry rather
+    than crash or wrap around to drafting labels."""
+    from typeshi.generate import ConvergenceError, generate_windowed
+
+    class RecordingTok(FakeTok):
+        def __init__(self):
+            super().__init__()
+            self.prompts = []
+
+        def __call__(self, prompt, return_tensors=None):
+            self.prompts.append(prompt)
+            return super().__call__(prompt, return_tensors)
+
+    tok = RecordingTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    with pytest.raises(ConvergenceError):
+        generate_windowed(model, tok, "hip",
+                          [SessionLabels(60, 0.0, 0.0, 0.012)], window_events=8)
+
+    import re
+
+    assert len(tok.prompts) >= 2
+    revs = {re.search(r"<REV:\d+>", p).group(0) for p in tok.prompts}
+    assert len(revs) == 1, \
+        "the lone schedule entry must repeat for every later window"
+
+
+class OpFakeTok(FakeTok):
+    """FakeTok plus the per-char pieces cursor ops decode through."""
+
+    def __init__(self):
+        super().__init__()
+        extra = sorted(set("<CUR:SELDEL->0123456789"))
+        base = self.unk_token_id + 1
+        for k, ch in enumerate(extra):
+            self.vocab[ch] = base + k
+        self._size = base + len(extra)
+        self.id_to_token = {i: t for t, i in self.vocab.items()}
+
+    def encode(self, s, add_special_tokens=False):
+        return [self.vocab[c] for c in s]
+
+    @property
+    def vocab_size(self):
+        return self._size
+
+
+def test_windowed_affordability_budget_is_run_scoped(monkeypatch):
+    """The affordability check must see the RUN's remaining tokens, not one
+    window's slice. Window-scoped budgets are the measured starvation: a
+    348-char target spends ~700 of its 1088-token window just typing, so a
+    long revision is never affordable anywhere in a long target -- even when
+    the run as a whole has windows of slack. State is replayed across
+    boundaries, so an excursion cut by a window edge resumes rather than
+    strands, and every spent token is counted against the same pool."""
+    import typeshi.converge as converge_mod
+    from typeshi.generate import ConvergenceError, generate_windowed
+
+    real = converge_mod.ConvergenceProcessor
+    budgets = []
+
+    class Recording(real):
+        def __init__(self, *args, **kwargs):
+            budgets.append(kwargs.get("token_budget"))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(converge_mod, "ConvergenceProcessor", Recording)
+    tok = FakeTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    with pytest.raises(ConvergenceError):
+        generate_windowed(model, tok, "hip", LABELS, window_events=8)
+
+    allowance = 2 * 8 + 64
+    run_budget = (2 + (4 * 3) // 8) * allowance  # max_windows * allowance
+    assert budgets[0] == run_budget
+    assert budgets[1] == run_budget - 4  # window 0 spent 4 tokens (EOS too)
+    assert budgets[2] == run_budget - 8
+
+
+def test_a_revising_window_is_not_branded_stalled():
+    """Stall was measured as target-prefix growth alone, so a window spent
+    revising -- cursor ops and deletions, no new prefix chars -- read as
+    'advanced nothing'. Revision ops are progress of the other kind."""
+    from typeshi.generate import ConvergenceError, generate_windowed
+
+    tok = OpFakeTok()
+    canned = (_stream(tok, "<h:50>", "<DT:50>", "<i:50>", "<DT:50>")
+              + [tok.vocab[c] for c in "<CUR:1>"]
+              + _stream(tok, "<DT:50>") + [tok.eos_token_id])
+    model = FakeModel(tok, canned)
+
+    with pytest.raises(ConvergenceError) as exc:
+        generate_windowed(model, tok, "hip", LABELS, window_events=8)
+
+    assert exc.value.stalled is False
+    assert "STALLED" not in str(exc.value)
+
+
 def test_windowed_observer_reports_cumulative_steps():
     """Otherwise the progress bar would reset to zero at every boundary."""
     from typeshi.generate import ConvergenceError, generate_windowed
@@ -317,3 +457,96 @@ def test_convergence_knobs_reach_the_processor():
     # excursion_budget=0 forbids off-path characters outright, so the only
     # thing the mask can produce is the target itself.
     assert [e.char for e in result.events] == ["h", "i"]
+
+
+def _spy_processor(monkeypatch):
+    """Captures the kwargs the decoder hands the convergence processor."""
+    from typeshi import converge
+
+    seen = {}
+    real = converge.ConvergenceProcessor
+
+    class Spy(real):
+        def __init__(self, *args, **kwargs):
+            seen.update(kwargs)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(converge, "ConvergenceProcessor", Spy)
+    return seen
+
+
+def test_single_shot_passes_its_token_budget_to_the_processor(monkeypatch):
+    """Affordability is inert unless the decoder tells the mask what the
+    budget actually is -- the processor cannot see max_new_tokens itself."""
+    from typeshi.generate import generate_session
+
+    seen = _spy_processor(monkeypatch)
+    tok = FakeTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    generate_session(model, tok, "hi", LABELS, mode="composition",
+                     constrained=True, max_new_tokens=64)
+
+    assert seen.get("token_budget") == 64
+
+
+def test_windowed_passes_the_run_budget_to_the_processor(monkeypatch):
+    """The budget the mask reasons about is the RUN's, not one window's
+    slice: window-scoped budgets starved long-target revision (open-work.md),
+    and state replay across boundaries is what makes run scope sound."""
+    from typeshi.generate import generate_windowed
+
+    seen = _spy_processor(monkeypatch)
+    tok = FakeTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    generate_windowed(model, tok, "hi", LABELS, window_events=8)
+
+    max_windows = 2 + (4 * 2) // 8
+    assert seen.get("token_budget") == max_windows * (2 * 8 + 64)
+
+
+def test_windowed_threads_the_staleness_window_through(monkeypatch):
+    """Staleness -- not the excursion budget -- is what closes a long
+    excursion, so it is the knob a caller has to be able to reach."""
+    from typeshi.generate import generate_windowed
+
+    seen = _spy_processor(monkeypatch)
+    tok = FakeTok()
+    canned = _stream(tok, "<h:50>", "<DT:50>", "<i:50>") + [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    generate_windowed(model, tok, "hi", LABELS, staleness_window=400)
+
+    assert seen.get("staleness_window") == 400
+
+
+def test_windowed_can_start_from_an_existing_draft():
+    """Draft -> final revision, driven by the mask rather than hoped for.
+
+    Seeding the buffer with a draft makes the convergence decoder produce the
+    edit sequence that turns it into the target -- which is what "write a
+    draft then revise it" actually needs, since the mask can permit an
+    excursion but cannot make it a plausible earlier draft.
+    """
+    from typeshi.buffer import replay
+    from typeshi.generate import generate_windowed
+
+    tok = FakeTok()
+    # Continuation windows open in GAP slot, so the stream starts with a gap.
+    canned = _stream(tok, "<DT:50>", "<BKSP:50>", "<DT:50>", "<i:50>") + \
+        [tok.eos_token_id]
+    model = FakeModel(tok, canned)
+
+    events = generate_windowed(model, tok, "hi", LABELS, draft="ho")
+
+    # The replayed session must be read as edits ON the draft, not from empty.
+    buf_text = "ho"
+    from typeshi.buffer import TextBuffer
+    buf = TextBuffer(buf_text)
+    for e in events:
+        buf.apply(e)
+    assert buf.text == "hi"
+    assert [e.type.value for e in events] == ["bksp", "key"]
