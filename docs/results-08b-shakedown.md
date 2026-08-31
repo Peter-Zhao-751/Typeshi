@@ -1,5 +1,13 @@
 # 0.8B Local Shakedown — Results
 
+> **Verdicts superseded.** The 0.77 model-vs-real figure below is inflated
+> twice over: real sessions were scored raw against bin-quantized
+> generations (the codec comb, `results-tiny-poc.md` §5.1), and the CV folds
+> were pair-grouped, leaking writer identity (`3ae1a69`, 2026-08-14). Tier-1
+> has since been met by the 4B checkpoints under the corrected protocol
+> (`docs/results-qwen35-4b-gpu.md`). The shakedown narrative, the MPS
+> sampler bug, and the data-scaling curve stand.
+
 First end-to-end exercise of the full loop (train → checkpoint → five-gate
 eval) on real hardware. Qwen3.5-0.8B, one epoch over 3,846 transcription
 examples, fp32 on an M5 Pro via MPS. **This was a pipeline shakedown, not a

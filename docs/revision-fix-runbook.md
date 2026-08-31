@@ -75,6 +75,11 @@ comparable to `eval_report_composition.json` beyond direction, because the
 old eval conditioned on session-constant labels the model was never
 trained to obey.
 
+The eval also changed protocol on 2026-08-14 (`3ae1a69`): CV folds now group
+by writer, not by pair. Read phase-3/phase-4 discriminator numbers from the
+writer-grouped field; the 0.965 (single-shot) and 0.945 (windowed) figures
+referenced in this file are pair-grouped upper bounds.
+
 **1. Re-export (CPU, ~the usual full-corpus build time).** ✅ done locally
 2026-08-25, gate passed (label accuracy 100.0%).
 
@@ -153,8 +158,10 @@ formality:
     python scripts/run_eval.py --checkpoint checkpoints/motor-phase3 \
       --held-out data/heldout_writers --n 200 --out eval_report_phase3_t1.json
 
-Gate: transcription validity stays at 100%, discriminator no worse than
-motor-full's 0.600.
+Gate: transcription validity stays at 100% and the writer-grouped model gate
+stays inside [0.40, 0.55]; motor-full's corrected baseline is 0.5129
+(`eval_report_motor-full_writergrouped.json`). The old 0.600 was a
+pair-grouped artifact; do not compare against it.
 
 **5. Phase-4: the IteraTeR mix, same rental.** Train from the SAME
 foundation with the mixed data, then run both evals again:

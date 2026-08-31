@@ -1,6 +1,6 @@
 # Open work — what to fix next, and what it needs
 
-State as of 2026-08-14 05:30 UTC, written for continuing on a laptop after
+State as of 2026-08-25, written for continuing on a laptop after
 the rented GPU is released. The narrative record of how we got here is
 `docs/gpu-run-chronicle.md`; this file is only what remains.
 
@@ -73,31 +73,22 @@ the eval path is the one that matters and it is wired).
 
 ## Fix 4 has a cause, and it is a data bug (2026-08-14, laptop)
 
-Composition knob fidelity is weak because **the conditioning labels describe
-the session while the completion is one window**. `build_examples` passed the
-session's `SessionLabels` to every window it cut. Measured over the 24,909
-exported composition windows, the `<REV:>` bin matched its own window only
-**52.9%** of the time — 39.9% of `<REV:0>` windows contain cursor ops, 24.0%
-of `<REV:n>` windows contain none.
+Composition knob fidelity was weak because **the conditioning labels describe
+the session while the completion is one window**. The transcription control
+pointed the same way: WPM fidelity is r=0.994 for Aalto (~50-event sessions
+that never window) against composition's r=0.43 — same code, opposite
+outcomes, explained entirely by whether windowing happened.
 
-The control was already in the report and reads the other way round from the
-"broken mechanism" hypothesis: transcription WPM fidelity is r=0.994 because
-Aalto sentences are ~50 events and **never window**, so their labels were
-always correct. Composition windows heavily and sits at r=0.43. Same code,
-opposite outcomes, explained entirely by whether windowing happened.
-
-Fixed and tested locally (334 green): `labels.window_labels()` recomputes
+Fixed and tested locally: `labels.window_labels()` recomputes
 speed/correction/revision per window and inherits only
 `uncorrected_error_rate` (a whole-session quantity — a window that typed half
-the text has not erred by stopping). `dataset.revision_repeats()` plus
-`build_dataset.py --oversample-revisions` rebalances the 0.9% of windows at
-`REV>=5`, train split only. On a 400-file KLiCKe slice: label accuracy
-52.9% → **100%**, `REV>=5` share 0.9% → 35.5% at factor 20.
-
-This needs a re-export and a retrain to show up. **`docs/revision-fix-runbook.md`
-is the sequence, with the numbers to check at each step.** Note it reprices
-WPM for any single-window session containing backspaces, so Tier-1 has to be
-re-run as a regression check, not a formality.
+the text has not erred by stopping). The full analysis (the 52.9% label-match
+figure and its breakdown), the geometric `<REV:>` rescale, the oversampling
+flags, and the numbers to check at each step live in
+**`docs/revision-fix-runbook.md`** — that file is the sequence; this section
+is only the pointer. One consequence stays here: the fix reprices WPM for any
+single-window session containing backspaces, so Tier-1 has to be re-run as a
+regression check, not a formality.
 
 ## Status: Fixes 1, 1b and 1c are implemented (2026-08-14, laptop)
 
@@ -163,19 +154,24 @@ still binds at 4. Suite 341 green, adversarial-sampler gate included.
 
 | Model | What it is | Verdict |
 |---|---|---|
-| `motor-full` | 1 epoch, full 1.95M-example Aalto corpus | **Best measured transcriber.** Tier-1 4/5 gates; discriminator 0.600 vs the ≤0.55 gate; 100% validity |
-| `motor-phase2` | `motor-full` + KLiCKe composition (mixed curriculum) | Composition-capable, transcription retained 20/20. Tier-2 scored (below) |
-| `motor-raft` | `motor-full` + RAFT round 1 | **Dead end.** 0.6075, pause KL regressed 0.46 → 1.22 |
+| `motor-full` | 1 epoch, full 1.95M-example Aalto corpus | **Tier-1 MET** under the corrected protocol: model 0.5129, validity 1.000 (`eval_report_motor-full_writergrouped.json`) |
+| `motor-phase2` | `motor-full` + KLiCKe composition (mixed curriculum) | Also passes Tier-1 (0.5100, validity 0.995). Composition-capable, transcription retained 20/20. Tier-2 scored (below) |
+| `motor-raft` | `motor-full` + RAFT round 1 | Null result. Its 0.6075 was measured under the superseded pair-grouped protocol; the pause-KL regression 0.46 → 1.22 stands |
 | `motor`, `motor-e1` | 20k-subset checkpoints | Superseded; keep only for provenance |
 
-Tier-1 fails on one gate only: a discriminator distinguishes generated from
-real typing 60% of the time (gate: ≤55%). Everything else passes, including
-the two teeth checks and the control.
+Tier-1 is met (2026-08-14, commits `3ae1a69`/`435bfd5`). The 0.58–0.60
+plateau was the eval, not the model: pair-grouped CV folds leaked writer
+identity, and the old pool drew 200 sessions from 14 writers. Writer-grouped
+folds with `--max-per-writer` (200 sessions across 67 writers) pass all five
+gates on both checkpoints: model 0.5129 / 0.5100, validity 1.000 / 0.995,
+teeth 0.997 / 1.000, serial teeth 0.788 / 0.758, controls 0.470 / 0.500.
 
-Tier-2 (first-ever run, `eval_report_composition.json`, single-shot
-decoding): timing is nearly solved — hold KL 0.008, pause 0.026, all three
-pause-position classes 0.13–0.17 — while the discriminator wins at 0.965 on
-**revision behavior** (see Fix 1).
+Tier-2 (windowed run, `eval_report_composition_windowed.json`): convergence
+90.1% with zero malformed streams; timing is nearly solved — hold KL 0.008,
+pause 0.026, all three pause-position classes 0.13–0.17 — while the
+discriminator wins at 0.945 on **revision behavior** (a pair-grouped figure,
+read it as an upper bound; the composition eval now reports writer-grouped
+folds alongside). Provisionally unmet; see Fix 1.
 
 ## Fix 1 💻 — the decoder suppresses the revision behavior the eval then penalizes
 
@@ -355,6 +351,14 @@ budget does not reintroduce the 1-in-5 collapse.
 
 ## Fix 2 🖥 — preference optimization, done properly this time
 
+**Motivation superseded (2026-08-14): Tier-1 is met under the corrected
+writer-grouped protocol, so there is no Tier-1 gate left for a preference
+round to move.** Every number in this section is pair-grouped; the RAFT null
+was measured against a metric inflated by writer-identity leakage and says
+nothing about the lever itself. The batched-generation prerequisite below is
+still worth building if preference optimization is ever aimed at the
+composition frontier, but do not rent a GPU for a Tier-1 DPO round.
+
 RAFT round 1 is a measured null: 800 targets × 4 candidates, discriminator
 picks the winner, 2 epochs SFT → 0.600 → 0.6075, and pause KL regressed
 (`eval_report_raft.json`, commit `55a68cb`).
@@ -425,17 +429,18 @@ improve paired CV accuracy **and** not regress any distributional KL
 
 ## Fix 3 💻/🖥 — the residual convergence failures
 
-Windowed generation took convergence from 76% to ~92% (`22164ca`). The
-remaining ~8% is **not** a length problem: the eval caps every target at
-400 chars and every KLiCKe test essay exceeds that, so all targets are
-exactly the same size — length is constant and cannot separate successes
-from failures.
+Windowed generation took convergence from 76.3% to a measured **90.1%**
+(`22164ca`, `eval_report_composition_windowed.json`). The remaining ~10% is
+**not** a length problem: the eval caps every target at 400 chars and every
+KLiCKe test essay exceeds that, so all targets are exactly the same size —
+length is constant and cannot separate successes from failures.
 
-Diagnostics are now in place (`1032d37`): `generate_windowed` reports
-on-path progress per window and whether the last window stalled, and
+Diagnostics are in place (`1032d37`): `generate_windowed` reports on-path
+progress per window and whether the last window stalled, and
 `run_eval_composition` records each failure with the conditioning knobs
-that produced it, in the report's `failures` array. **The next composition
-eval run answers this**; nothing to guess at now.
+that produced it, in the report's `failures` array. The windowed report
+predates those diagnostics, so its `failures` array is empty; **the next
+composition eval run populates it** — read those records before guessing.
 
 Leading hypothesis to test against those records: failures cluster on
 high `revision_rate` conditioning, where the model wants to edit more than
@@ -486,5 +491,9 @@ in `docs/token-format.md`'s style — measurement first, number second.
   model can beat.
 - Reports written before commit `b55e93e` are not comparable to later ones
   (scoring semantics changed).
+- CV folds group by **writer**, with sessions per writer capped
+  (`--max-per-writer`, default 3). Pair-grouped folds leak typist identity
+  and inflated every pre-`3ae1a69` model-gate number (measured: 0.632 pair
+  vs 0.518 writer).
 - Writer splits are hash-based and stable under subsetting; the eval must
   keep honoring the split bound into each checkpoint.

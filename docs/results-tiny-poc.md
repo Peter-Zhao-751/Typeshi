@@ -5,6 +5,15 @@
 **Plan:** `docs/superpowers/plans/2026-08-10-tiny-motor-poc.md`
 **Checkpoint:** `checkpoints/motor-tiny` · **Report:** `eval_tiny_full.json`
 
+> **Protocol correction (2026-08-14, commit `3ae1a69`):** every
+> model-vs-real accuracy in this file (0.470, 0.610, 0.640) was scored with
+> pair-grouped CV folds, which leak writer identity and inflate accuracy
+> (measured on the 4B: 0.632 pair-grouped vs 0.518 writer-grouped). The
+> stretch-gate verdict is superseded; read the §3 fidelity/realism trade-off
+> as directional, not calibrated. The hard-bar results stand, and §5.2's
+> unpassable serial gate was closed the same week by the nine order
+> statistics (`ec8a89f`: real-vs-shuffled 0.4975 → 0.8075).
+
 A 19M-parameter transformer trained from scratch on one Mac types
 transcription sessions that are **100% valid** on held-out writers. The PoC's
 hard bar passed; the timing-realism stretch goal did not, and the reason is

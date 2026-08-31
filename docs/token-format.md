@@ -61,7 +61,8 @@ this way, so the property matters.
 |---|---|---|
 | `<MODE:m>` | 2 | `T` transcription, `C` composition |
 | `<WPM:w>` | 40 | 5-wpm buckets; corpus max is 156, never clamps |
-| `<ECOR:e>` `<EUNC:u>` `<REV:r>` | 31 each | whole %-points, clamped at 30 |
+| `<ECOR:e>` `<EUNC:u>` | 31 each | whole %-points, clamped at 30 |
+| `<REV:r>` | 31 | geometric bins over 0.1%–30%, bin 0 = exactly zero (`rev_bin`/`rev_from_bin`; whole-percent before the revision fix, so checkpoints through `motor-phase2` learned the old scale — derivation in `docs/revision-fix-runbook.md`) |
 | `<TARGET>` `<WRITTEN>` `<PROCESS>` | 3 | structure markers |
 
 - The **target text stays natural language** — the one place the base model's

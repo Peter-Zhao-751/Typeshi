@@ -1,11 +1,16 @@
 """Rejection-sampling (RAFT) preference data for the Phase-3 polish.
 
-The Tier-1 model gate plateaued at 0.58-0.60 after data, epochs, and
-temperature were exhausted; the design spec's remaining lever (section 5,
-phase 3) is discriminator-guided preference optimization. This script is
-the data half: K candidate generations per TRAINING-writer target, scored
-by a discriminator trained on TRAINING-writer real sessions vs model
-generations, keeping the most-human candidate per target as SFT data.
+Built when the Tier-1 model gate appeared to plateau at 0.58-0.60 after
+data, epochs, and temperature were exhausted, making the design spec's
+remaining lever (section 5, phase 3) discriminator-guided preference
+optimization. That plateau was later traced to pair-grouped CV folds
+leaking writer identity: under the corrected writer-grouped protocol
+Tier-1 is met without RAFT (model 0.5129), and RAFT round 1 was a null
+result. This script stays as the data half of any future
+preference-optimization round: K candidate generations per
+TRAINING-writer target, scored by a discriminator trained on
+TRAINING-writer real sessions vs model generations, keeping the
+most-human candidate per target as SFT data.
 
 Held-out writers appear nowhere here: the scoring discriminator and every
 target come from the training split, so the eval stays uncontaminated.

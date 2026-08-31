@@ -1,5 +1,17 @@
 # GPU run chronicle — Lambda 1×H100, 2026-08-11 to 2026-08-13
 
+> **Verdict correction (2026-08-14, after this chronicle closes).** Every
+> `pass_model` number in this record is inflated by the writer-identity leak
+> found the next day: the held-out pool drew 200 sessions from 14 writers,
+> and pair-grouped CV folds put the same writer in train and test. Under the
+> corrected writer-grouped protocol (`3ae1a69`, `--max-per-writer`),
+> **Tier-1 is met**: `motor-full` 0.5129 and `motor-phase2` 0.5100, all five
+> gates (`docs/results-qwen35-4b-gpu.md`). The lever ledger's nulls (data,
+> epochs, temperature, RAFT) were measured against that artifact and say
+> nothing about the levers; RAFT round 1 remains a null result. The
+> narrative below is unchanged: it is the record of how the compute was
+> actually spent.
+
 The complete record of the rented GPU box, from provisioning (2026-08-11
 ~05:00 UTC) to the time of writing (2026-08-13 22:10 UTC, RAFT generation in
 flight). All times UTC — the box's clock and every log marker. Sources: the

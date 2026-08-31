@@ -1,4 +1,4 @@
-# IteraTeR — human edit-intention dataset (notes, no adapter yet)
+# IteraTeR — human edit-intention dataset (field guide; adapter: `src/typeshi/adapters/iterater.py`)
 
 Downloaded 2026-08-13 to `data/raw/iterater/` from HuggingFace
 (`wanyu/IteraTeR_human_sent`, `wanyu/IteraTeR_human_doc`; ~5.5 MB total).
@@ -88,7 +88,9 @@ empirical anchor for every step of that pipeline:
    skew more polished than typical live composition. Treat it as structure
    ground truth, not behavior ground truth.
 
-Next step when an adapter is wanted: parse `edit_actions` into canonical
-event-stream skeletons (`iter_revisions(path)` yielding
-`(doc_id, depth, before_text, ops)`), leaving timing assignment to the motor
-model. Not built yet, per plan.
+The adapter now exists (2026-08-25): `adapters/iterater.py`, with
+`adapters/timing.py` drawing hold/gap pairs from real KLiCKe pools, parses
+`edit_actions` into canonical CURSOR/SELDEL/KEY event streams and exports a
+concatenable shard via `build_dataset.py --iterater`. See
+`docs/open-work.md` (2026-08-25 section) and `docs/revision-fix-runbook.md`
+for the export gates and yield.

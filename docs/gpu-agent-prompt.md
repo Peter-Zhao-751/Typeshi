@@ -1,5 +1,12 @@
 # Prompt for Claude Code on the GPU box
 
+> **Executed 2026-08-11 to 2026-08-13** (`docs/gpu-run-chronicle.md`);
+> Tier-1 is met under the corrected writer-grouped protocol
+> (`docs/results-qwen35-4b-gpu.md`). Step 5's levers (more data,
+> temperature, longer training) were spent against a metric later shown to
+> leak writer identity. Kept as a template for future box prompts; the live
+> GPU sequence is `docs/revision-fix-runbook.md`.
+
 Copy everything below the line into a fresh Claude Code session running in
 `~/Typeshi` on the rented GPU instance.
 

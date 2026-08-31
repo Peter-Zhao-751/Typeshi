@@ -33,9 +33,9 @@ is seconds; a paragraph is minutes. So:
   `job_id` immediately; `GET /api/jobs/{id}/stream` is server-sent events
   carrying token count, rate, ETA and the live buffer; `POST
   /api/jobs/{id}/cancel` stops it and still returns the partial stream.
-- Exactly one job runs at a time. That is a correctness requirement, not only
-  a memory one: `generate()` calls `torch.manual_seed()` as global process
-  state, so two concurrent runs would corrupt each other's reproducibility.
+- Exactly one job runs at a time — a correctness requirement, not only a
+  memory one; the full rationale lives in `src/typeshi/portal/jobs.py`'s
+  docstring, next to the code that enforces it.
 
 Progress streaming and the typing animation are deliberately separate
 channels. Generated timestamps are *simulated* milliseconds, not wall-clock,
@@ -70,12 +70,12 @@ composition was trained on. Measured here on a 197-character paragraph,
 
 Two things to take from that. The mask-only path silently drops a character
 on roughly one seed in four — that is the "…domestic spher" failure, and it
-is why the guarantee is on by default. But the guarantee is not free: its
-backspace rate is bimodal, sometimes landing at a human-like 2.4% and
-sometimes at 36% as the model fights the mask for text it would rather not
-write. A converged run with a 36% backspace rate is *correct* and *not
-realistic*, and the realism panel will say so. That gap is the Phase-3
-adversarial-polish problem, not a decoder bug.
+is why the guarantee is on by default. But this table predates the staleness
+and affordability fixes in `converge.py`, which turned out to be the cure
+for the mask-fighting mode (re-measured after them: longest backspace run
+~140 → 11; `docs/open-work.md`). A converged run that still lands high is
+*correct* and *not realistic*, and the realism panel will say so; the
+residual gap is revision training data, not the decoder.
 
 Failures are named rather than counted: `ConvergenceError` (a `ValueError`,
 so existing `except ValueError` callers keep working) carries the partial
@@ -111,7 +111,9 @@ pure revision task rather than composition with occasional revision.
 **`excursion_budget` is not the knob that limits detour length.** The gate is
 `(depth < budget or affordable) and not resolving and not stale and not
 floor` — four conjuncts, of which the budget is one disjunct of the first.
-Staleness binds first, and it is what to raise.
+Since staleness scales with excursion depth (`STALE_DEPTH_SLACK`,
+2026-08-24), deliberate excursions survive at the shipped defaults; raise
+`staleness_window` only if a long revision still gets cut short.
 
 ## Two fixes this shook out
 
@@ -137,28 +139,19 @@ forms. fp16 stays excluded (the gated-delta kernels carry an explicit
 
 ## What the realism panel will and will not claim
 
-Per-sample, the honest readout is the nine order-sensitive features, because
-each has a known null under exchangeability — a gauge reading "null | this
-sample | real-human band" needs no reference pool for its null and no
-calibration for its meaning. Real sessions are `codec_roundtrip`ed first;
-skipping that is how a discriminator scores 0.915 on quantization alone.
+Per-sample, the panel shows the nine order-sensitive features (each with a
+known null under exchangeability, so a gauge reading "null | this sample |
+real-human band" needs no calibration) and refuses to show a per-sample KL,
+a Fréchet distance, or a P(real) dial. Each refusal has a measured reason;
+the full rationale with the numbers lives in the module docstring of
+`src/typeshi/portal/readout.py`, next to the code that enforces it. Real
+sessions are `codec_roundtrip`ed first; skipping that is how a discriminator
+scores 0.915 on quantization alone.
 
-Two things it refuses to show:
-
-- **No per-sample KL or Fréchet.** Both guard on `MIN_SAMPLES=10` and
-  `pause`/`burst` are empty or singleton for one session. Where they do
-  compute they are dominated by histogram sparsity: a real held-out human
-  scores iki KL 3.59 against the pooled real reference where the report's
-  pooled figure is 0.014. Surfacing that would mark every genuine human as
-  inhuman.
-- **No P(real) dial.** The honest one is a persisted discriminator's
-  `predict_proba`, and no such artifact exists — `train_discriminator`
-  returns a fitted classifier and every call site discards it. Fitting one
-  needs 200 held-out pairs, which is hours of decoding at this speed. Until
-  that exists, a calibrated probability would be an invented number.
-
-Temperature ships with a warning rather than as a neutral slider: cooling is
-monotonically harmful (1.0 → 0.60, 0.9 → 0.66, 0.8 → 0.685).
+Temperature ships with a warning rather than as a neutral slider: cooling
+read monotonically harmful under the superseded pair-grouped eval
+(1.0 → 0.60, 0.9 → 0.66, 0.8 → 0.685). The sweep has not been re-run
+writer-grouped; T=1.0 stays the default.
 
 ## Checkpoint provenance
 
@@ -190,11 +183,13 @@ regardless of training — but it thrashes noticeably more getting there
 
 ## Known gaps
 
-- Constrained composition emits **no cursor ops at all** — convergence stage 1
-  masks `<CUR:>`/`<SELDEL:>` out entirely, so the REV knob cannot manifest
-  there. The UI says so rather than hiding it. Turning constrained decoding
-  off does produce cursor events, and can produce out-of-buffer ones; the
-  portal renders the partial stream and names the defect instead of erroring.
+- Constrained composition now emits cursor ops and SELDELs (stage-2 ops plus
+  the affordability rule; the draft-revision table above shows them live).
+  What remains thin is spontaneous revision during ordinary composition:
+  ~0.4% of events against real writers' 1.1–1.3%, a training-data gap
+  (`docs/iterater-notes.md`), not a mask one. Unconstrained decoding can
+  still produce out-of-buffer cursor ops; the portal renders the partial
+  stream and names the defect instead of erroring.
 - First load can be much slower than the ~25 s warm figure if the machine is
   under memory pressure (observed: 16 minutes while other large processes
   held RAM).

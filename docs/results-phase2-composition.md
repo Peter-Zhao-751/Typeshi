@@ -6,6 +6,14 @@ curriculum (27,480 KLiCKe composition + 32,878 Aalto transcription examples,
 12h33m, loss 2.94 → 2.569, token accuracy 21.6% (highest of any run).
 Checkpoint: `checkpoints/motor-phase2`. Probes: `scripts/probe_phase2.py`.
 
+> **Superseded (2026-08-14).** The decoder this file asks for was built
+> (`src/typeshi/converge.py`) and the Tier-2 eval now exists: windowed
+> generation converges 90.1% with zero malformed streams
+> (`eval_report_composition_windowed.json`). This checkpoint also passes
+> Tier-1 under the corrected writer-grouped protocol (0.5100, validity
+> 0.995; `eval_report_motor-phase2_writergrouped.json`). The probes below
+> are kept as the record of why the convergence decoder exists.
+
 ## Probe results (no Tier-2 eval exists yet — these are sanity probes)
 
 **Transcription regression: 20/20 valid** through the constrained decoder.

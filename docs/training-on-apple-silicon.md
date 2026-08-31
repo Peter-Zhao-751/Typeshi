@@ -172,12 +172,15 @@ fragments into BPE pieces again.
 
 ## Base model access
 
-`config.BASE_MODEL` is `Qwen/Qwen2.5-7B-Instruct` (ungated). The gated
-`meta-llama/Meta-Llama-3.1-8B-Instruct` returns 403 on weight download from
-this machine — its metadata reads fine, which is misleading. Ungated
-alternatives:
+`config.BASE_MODEL` is `Qwen/Qwen3.5-4B` (ungated), the production default
+since the GPU run. `Qwen/Qwen2.5-7B-Instruct` (`config.QWEN25_BASE_MODEL`)
+remains the right base for the MLX route and is `prepare_mlx_model.py`'s
+default, since the locked mlx-lm has no model class for Qwen3.5's text
+config. The gated `meta-llama/Meta-Llama-3.1-8B-Instruct` returns 403 on
+weight download from this machine — its metadata reads fine, which is
+misleading. Ungated alternatives:
 
-- `Qwen/Qwen2.5-7B-Instruct` (the plan allows Llama *or* Qwen; the default)
+- `Qwen/Qwen2.5-7B-Instruct` (the plan allows Llama *or* Qwen; the MLX-path base)
 - `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` (MLX, 4-bit, stock tokenizer)
 
 ## Recommendation

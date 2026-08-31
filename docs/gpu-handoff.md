@@ -1,5 +1,14 @@
 # GPU Handoff — Phase-1 Motor Fine-Tune
 
+> **Status (2026-08-14):** the run this file prepares happened (Lambda
+> 1×H100, 2026-08-11 to 08-13; `docs/gpu-run-chronicle.md`) and **Tier-1 is
+> met** under the corrected writer-grouped eval
+> (`docs/results-qwen35-4b-gpu.md`). The rental mechanics below remain valid
+> for the next box; the current GPU sequence is
+> `docs/revision-fix-runbook.md`. One protocol change since writing:
+> `run_eval` groups CV folds by writer and caps sessions per writer
+> (`--max-per-writer`, default 3); pair-grouped numbers are not comparable.
+
 Everything needed to move the Phase-1 training run onto a rented GPU. The
 pipeline, dataset builder, and eval harness are done and tested; what remains
 is the fine-tune itself, which does not fit on a Mac (see
